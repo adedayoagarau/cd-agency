@@ -84,7 +84,7 @@ Agents are executable via the Python runtime. Install and use programmatically o
 pip install -e .
 ```
 
-Requires `ANTHROPIC_API_KEY` environment variable (see `.env.example`).
+Requires `ANTHROPIC_API_KEY` or other preferred 'KEY' (I have personally enjoyed Kimi 2.5 too) environment variable (see `.env.example`).
 
 ### CLI Usage
 
