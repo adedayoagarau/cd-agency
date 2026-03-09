@@ -1,0 +1,120 @@
+name: "CD Agency Content Lint"
+description: "Lint UI strings and content in pull requests for quality, accessibility, and inclusive language"
+author: "cd-agency"
+
+branding:
+  icon: "edit-3"
+  color: "purple"
+
+inputs:
+  file_patterns:
+    description: "Glob patterns for files to scan (comma-separated)"
+    required: false
+    default: "**/*.json,**/*.md,**/*.tsx,**/*.jsx"
+  rules:
+    description: "Lint rules to enable (comma-separated, or 'all')"
+    required: false
+    default: "all"
+  content_type:
+    description: "Content type for type-specific rules (general, cta, button, error, notification, microcopy)"
+    required: false
+    default: "general"
+  severity_threshold:
+    description: "Minimum severity to report (error, warning, info)"
+    required: false
+    default: "warning"
+  fail_on_error:
+    description: "Fail the check if any error-severity issues found"
+    required: false
+    default: "true"
+  target_reading_grade:
+    description: "Target reading grade level for accessibility check"
+    required: false
+    default: "8"
+  python_version:
+    description: "Python version to use"
+    required: false
+    default: "3.11"
+
+outputs:
+  issues_found:
+    description: "Number of issues found"
+  report:
+    description: "Full lint report in JSON format"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python_version }}
+
+    - name: Install cd-agency
+      shell: bash
+      run: |
+        pip install -e ${{ github.action_path }}/../../..
+
+    - name: Get changed files
+      id: changed
+      shell: bash
+      run: |
+        if [ "${{ github.event_name }}" = "pull_request" ]; then
+          FILES=$(gh pr diff ${{ github.event.pull_request.number }} --name-only | tr '\n' ' ')
+        else
+          FILES=$(git diff --name-only HEAD~1 | tr '\n' ' ')
+        fi
+        echo "files=$FILES" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Extract and lint content
+      id: lint
+      shell: bash
+      run: |
+        IFS=',' read -ra PATTERNS <<< "${{ inputs.file_patterns }}"
+        ISSUES=0
+        REPORT="[]"
+
+        for file in ${{ steps.changed.outputs.files }}; do
+          MATCH=false
+          for pattern in "${PATTERNS[@]}"; do
+            pattern=$(echo "$pattern" | xargs)
+            if [[ "$file" == $pattern ]]; then
+              MATCH=true
+              break
+            fi
+          done
+
+          if [ "$MATCH" = true ] && [ -f "$file" ]; then
+            echo "Scanning: $file"
+            RESULT=$(cd-agency score all --file "$file" --type "${{ inputs.content_type }}" --json-output 2>/dev/null || echo '{"lint":{"results":[]}}')
+            LINT_ISSUES=$(echo "$RESULT" | python3 -c "
+        import json, sys
+        data = json.load(sys.stdin)
+        issues = [r for r in data.get('lint', {}).get('results', []) if not r.get('passed', True)]
+        severity_map = {'error': 3, 'warning': 2, 'info': 1}
+        threshold = severity_map.get('${{ inputs.severity_threshold }}', 2)
+        filtered = [r for r in issues if severity_map.get(r.get('severity', 'info'), 0) >= threshold]
+        print(len(filtered))
+        " 2>/dev/null || echo "0")
+            ISSUES=$((ISSUES + LINT_ISSUES))
+          fi
+        done
+
+        echo "issues_found=$ISSUES" >> $GITHUB_OUTPUT
+
+    - name: Post results
+      if: github.event_name == 'pull_request'
+      shell: bash
+      run: |
+        ISSUES=${{ steps.lint.outputs.issues_found }}
+        if [ "$ISSUES" -gt 0 ]; then
+          echo "::warning::Content lint found $ISSUES issue(s)"
+          if [ "${{ inputs.fail_on_error }}" = "true" ]; then
+            echo "::error::Content lint failed with $ISSUES issue(s)"
+            exit 1
+          fi
+        else
+          echo "Content lint passed — no issues found"
+        fi

@@ -492,6 +492,64 @@ def score_all(
     click.echo(report.render(fmt))
 
 
+# --- Export command ---
+
+@main.command("export")
+@click.option("--input", "-i", "input_text", help="Original (before) text")
+@click.option("--output", "-o", "output_text", help="Improved (after) text")
+@click.option("--id", "entry_id", default="1", help="Content entry ID")
+@click.option("--context", default="", help="Context description")
+@click.option("--agent", "agent_name", default="", help="Agent that produced the output")
+@click.option("--format", "-f", "fmt",
+              type=click.Choice(["json", "csv", "markdown", "xliff"]),
+              default="json", help="Export format")
+def export_cmd(
+    input_text: str | None, output_text: str | None,
+    entry_id: str, context: str, agent_name: str, fmt: str,
+) -> None:
+    """Export content in various formats (JSON, CSV, Markdown, XLIFF)."""
+    from tools.export import ContentEntry, ExportFormat, export_entries
+
+    if not input_text or not output_text:
+        click.echo("Error: Both --input and --output are required.", err=True)
+        sys.exit(1)
+
+    entries = [ContentEntry(
+        id=entry_id,
+        source=input_text,
+        target=output_text,
+        context=context,
+        agent=agent_name,
+    )]
+
+    export_fmt = ExportFormat(fmt)
+    click.echo(export_entries(entries, export_fmt))
+
+
+# --- Preset command ---
+
+@main.command("presets")
+def list_presets() -> None:
+    """List available design system presets."""
+    from pathlib import Path
+
+    presets_dir = Path("presets")
+    if not presets_dir.exists():
+        console.print("[yellow]No presets directory found.[/yellow]")
+        return
+
+    table = Table(title="Design System Presets")
+    table.add_column("Preset", style="cyan")
+    table.add_column("File", style="dim")
+
+    for f in sorted(presets_dir.glob("*.yaml")):
+        name = f.stem.replace("-", " ").title()
+        table.add_row(name, str(f))
+
+    console.print(table)
+    console.print(f"\n[dim]Use with: cd-agency score voice --guide presets/<name>.yaml[/dim]")
+
+
 def _build_input(
     agent: Agent,
     input_text: str | None,
@@ -526,6 +584,123 @@ def _build_input(
             user_input[agent.inputs[0].name] = stdin_content
 
     return user_input
+
+
+# --- Interactive mode ---
+
+@main.command("interactive")
+def interactive_mode() -> None:
+    """Guided interactive session — pick an agent, provide input, see results."""
+    registry = _get_registry()
+    agents = registry.list_all()
+
+    console.print("\n[bold]Welcome to the Content Design Agency[/bold]")
+    console.print("Let's find the right agent for your task.\n")
+
+    # Show task categories
+    categories = {
+        "1": ("Writing or reviewing microcopy (buttons, labels, tooltips)", "microcopy-review-agent"),
+        "2": ("Creating or improving CTAs", "cta-optimization-specialist"),
+        "3": ("Writing error messages", "error-message-architect"),
+        "4": ("Designing onboarding flows", "onboarding-flow-designer"),
+        "5": ("Checking accessibility", "accessibility-content-auditor"),
+        "6": ("Adjusting tone and voice", "tone-evaluation-agent"),
+        "7": ("Writing for mobile", "mobile-ux-writer"),
+        "8": ("Designing empty states", "empty-state-placeholder-specialist"),
+        "9": ("Writing notifications", "notification-content-designer"),
+        "10": ("General content design help", "content-designer-generalist"),
+    }
+
+    console.print("[bold]What are you working on?[/bold]")
+    for key, (desc, _) in categories.items():
+        console.print(f"  [cyan]{key:>2}[/cyan]. {desc}")
+
+    choice = click.prompt("\nSelect a number", type=str, default="10")
+    if choice not in categories:
+        console.print("[yellow]Using generalist agent.[/yellow]")
+        choice = "10"
+
+    _, agent_slug = categories[choice]
+    agent = registry.get(agent_slug)
+
+    if not agent:
+        console.print(f"[red]Agent not found: {agent_slug}[/red]")
+        sys.exit(1)
+
+    console.print(f"\n[bold cyan]Using: {agent.name}[/bold cyan]")
+    console.print(f"[dim]{agent.description}[/dim]\n")
+
+    # Collect inputs
+    user_input: dict[str, Any] = {}
+    for inp in agent.inputs:
+        label = f"{inp.name}"
+        if inp.description:
+            label += f" ({inp.description})"
+        if not inp.required:
+            label += " [optional]"
+
+        if inp.required:
+            value = click.prompt(f"  {label}")
+        else:
+            value = click.prompt(f"  {label}", default="", show_default=False)
+
+        if value:
+            user_input[inp.name] = value
+
+    # Validate
+    missing = agent.validate_input(user_input)
+    if missing:
+        console.print(f"[red]Missing required fields: {', '.join(missing)}[/red]")
+        sys.exit(1)
+
+    # Check for API key
+    config = Config.from_env()
+    errors = config.validate()
+    if errors:
+        for err in errors:
+            console.print(f"[red]{err}[/red]")
+        console.print("\n[dim]Set ANTHROPIC_API_KEY to run agents.[/dim]")
+        sys.exit(1)
+
+    console.print(f"\n[dim]Running {agent.name}...[/dim]\n")
+
+    runner = AgentRunner(config)
+    try:
+        result = runner.run(agent, user_input)
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+        sys.exit(1)
+
+    console.print(result.content)
+    console.print(f"\n[dim]Model: {result.model} | Tokens: {result.input_tokens}→{result.output_tokens} | {result.latency_ms:.0f}ms[/dim]")
+
+    # Offer scoring
+    if click.confirm("\nScore this output for quality?", default=False):
+        from tools.scoring import ReadabilityScorer
+        from tools.linter import ContentLinter
+        from tools.a11y_checker import A11yChecker
+        from tools.report import ScoringReport, ReportFormat
+
+        report = ScoringReport(
+            text=result.content,
+            readability=ReadabilityScorer().score(result.content),
+            lint_results=ContentLinter().lint(result.content),
+            a11y_result=A11yChecker().check(result.content),
+        )
+        console.print(f"\n{report.render(ReportFormat.TEXT)}")
+
+    # Offer related agents
+    if agent.related_agents:
+        console.print(f"\n[bold]Related agents:[/bold] {', '.join(agent.related_agents)}")
+        if click.confirm("Hand off to a related agent?", default=False):
+            related_name = click.prompt(
+                "Which agent?",
+                type=click.Choice(agent.related_agents),
+            )
+            related = registry.get(related_name)
+            if related:
+                console.print(f"\n[bold cyan]Handing off to: {related.name}[/bold cyan]")
+                console.print(f"[dim]Run: cd-agency agent run {related.slug} -i \"{result.content[:50]}...\"[/dim]")
 
 
 if __name__ == "__main__":

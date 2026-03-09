@@ -153,10 +153,19 @@ cd-agency/
 │   ├── linter.py       # Content lint rules (7+ rules)
 │   ├── a11y_checker.py # WCAG accessibility text checker
 │   ├── voice_checker.py # Brand voice consistency (LLM + rule-based)
-│   └── report.py       # Report generation (text, JSON, Markdown)
-├── tests/              # 164 unit tests
-├── docs/               # Decision tree and documentation
-│   └── WHEN_TO_USE.md  # Agent selection guide
+│   ├── report.py       # Report generation (text, JSON, Markdown)
+│   └── export.py       # Export formats (JSON, CSV, Markdown, XLIFF)
+├── presets/            # Design system voice profiles
+│   ├── material-design.yaml
+│   ├── shopify-polaris.yaml
+│   ├── atlassian-design.yaml
+│   └── apple-hig.yaml
+├── tests/              # 194 unit tests
+├── docs/               # Documentation and integration specs
+│   ├── WHEN_TO_USE.md  # Agent selection guide
+│   ├── figma-plugin-spec.md
+│   └── vscode-extension-spec.md
+├── .github/actions/    # GitHub Action for content linting
 ├── examples/           # 17 before/after case studies
 ├── workflows/          # 5 multi-agent pipeline definitions
 ├── IMPLEMENTATION_PLAN.md
@@ -243,12 +252,101 @@ cd-agency score readability -i "Simple version" --compare "Complex original vers
 
 Output formats: plain text (terminal), JSON, and Markdown.
 
+## Design System Presets
+
+Pre-configured brand voice profiles for popular design systems:
+
+```bash
+# Check content against Material Design writing guidelines
+cd-agency score voice -i "Click here to submit" --guide presets/material-design.yaml --no-llm
+
+# List available presets
+cd-agency presets
+```
+
+4 presets included in [`presets/`](./presets/):
+- **Material Design** — Google's writing guidelines (sentence case, "you", present tense)
+- **Shopify Polaris** — Merchant-focused, grade 7 reading level, verb+noun buttons
+- **Atlassian Design** — Bold, optimistic, team-oriented, sentence case everywhere
+- **Apple HIG** — Friendly, title case buttons, "tap" not "click" on iOS
+
+Each preset includes tone descriptors, do/don't rules, sample content, character limits, and terminology glossary.
+
+## Interactive Mode
+
+New to the agency? The guided interactive mode walks you through:
+
+```bash
+cd-agency interactive
+```
+
+1. Asks "What are you working on?" → suggests the right agent
+2. Walks through required inputs with prompts
+3. Shows agent output with optional quality scoring
+4. Offers handoff to related agents
+
+## Export Formats
+
+Export before/after content in formats compatible with CMS, translation, and design tools:
+
+```bash
+# JSON (CMS import)
+cd-agency export -i "Submit" -o "Start free trial" --format json
+
+# CSV (spreadsheet review)
+cd-agency export -i "Submit" -o "Start free trial" --format csv
+
+# XLIFF (translation tools)
+cd-agency export -i "Submit" -o "Start free trial" --format xliff
+
+# Markdown (documentation)
+cd-agency export -i "Submit" -o "Start free trial" --format markdown
+```
+
+## Integrations
+
+### GitHub Action
+
+Lint content in pull requests automatically:
+
+```yaml
+- uses: adedayoagarau/cd-agency/.github/actions/content-lint@main
+  with:
+    file_patterns: "src/locales/**/*.json,src/components/**/*.tsx"
+    content_type: general
+    fail_on_error: true
+```
+
+See [full usage example](./examples/github-action-usage.yml).
+
+### Figma Plugin (Spec)
+
+Select text layers → run agents → apply suggestions. [View spec](./docs/figma-plugin-spec.md).
+
+### VS Code Extension (Spec)
+
+Inline content lint, command palette agents, sidebar scoring panel. [View spec](./docs/vscode-extension-spec.md).
+
+## Config File
+
+Create a `.cd-agency.yaml` in your project root to set defaults:
+
+```yaml
+model: claude-sonnet-4-20250514
+agents_dir: content-design
+default_preset: material-design
+brand_voice_guide: presets/material-design.yaml
+output_format: text  # text, json, markdown
+```
+
+Environment variables override config file values.
+
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for the full plan. Next up:
 
-- **Design system presets** — Pre-configured tone/voice profiles per brand
-- **CI/CD integration** — GitHub Action for content linting in PRs
+- **Custom agent builder** — `cd-agency agent create` interactive wizard
+- **Project memory** — Agents remember terminology and voice decisions across sessions
 
 ## Integration with `content-design-prompt-library`
 

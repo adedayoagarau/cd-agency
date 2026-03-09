@@ -1,0 +1,60 @@
+# Material Design Writing Guidelines
+# Based on: https://m3.material.io/foundations/content-design/overview
+
+name: Material Design
+tone_descriptors:
+  - clear
+  - concise
+  - useful
+  - friendly but not overly casual
+
+do:
+  - Use simple, direct language
+  - Address the user as "you"
+  - Use present tense ("Message sent" not "Message has been sent")
+  - Use active voice
+  - Lead with the most important information
+  - Use sentence case for all UI elements
+  - Use numerals instead of spelling out numbers
+  - Keep button labels to 1-2 words when possible
+  - Use "Sign in" not "Log in"
+  - Write error messages that explain what happened and what to do next
+
+dont:
+  - Use "please" excessively (once per interaction max)
+  - Use "we" to refer to the app (the app acts, not a team)
+  - Use ALL CAPS except for acronyms
+  - Use technical jargon or developer terms in user-facing copy
+  - Use exclamation marks in error messages
+  - Use "click" or "tap" — use "select" instead
+  - Use gender-specific pronouns — use "they/them"
+  - End button labels with punctuation
+  - Use "OK" as a button label — be specific about the action
+
+sample_content:
+  - "Saved to your library"
+  - "2 items selected"
+  - "Can't load messages. Check your connection and try again."
+  - "Delete this conversation? You can't undo this."
+
+character_limits:
+  button: 25
+  tooltip: 60
+  snackbar: 80
+  dialog_title: 40
+  notification_title: 40
+  notification_body: 120
+
+terminology:
+  sign_in: "Sign in"  # not "Log in"
+  sign_out: "Sign out"  # not "Log out"
+  select: "Select"  # not "Click" or "Tap"
+  turn_on: "Turn on"  # not "Enable"
+  turn_off: "Turn off"  # not "Disable"
+  remove: "Remove"  # not "Delete" (for non-permanent actions)
+  delete: "Delete"  # only for permanent actions
+  undo: "Undo"
+  cancel: "Cancel"
+  done: "Done"
+  save: "Save"
+  ok: "Got it"  # not "OK"

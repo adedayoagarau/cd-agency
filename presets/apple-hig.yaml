@@ -1,0 +1,60 @@
+# Apple Human Interface Guidelines — Writing
+# Based on: https://developer.apple.com/design/human-interface-guidelines/writing
+
+name: Apple HIG
+tone_descriptors:
+  - friendly but not chummy
+  - informative but not preachy
+  - casual but not sloppy
+  - direct and respectful
+
+do:
+  - Use familiar, conversational language
+  - Address people directly with "you"
+  - Use contractions (it's, can't, won't)
+  - Use present tense
+  - Use active voice
+  - Use title case for buttons, menus, and titles
+  - Use the exact names of interface elements (e.g., "tap the Share button")
+  - Refer to people as "people" or "users", not "customers"
+  - Write alert titles as short, informative questions or statements
+  - Use "OK" for acknowledgment, specific verbs for actions
+
+dont:
+  - Use "please" in alerts — it sounds like begging
+  - Use "are you sure?" — it sounds condescending
+  - Use technical terms (memory, cache, process) in user-facing copy
+  - Use "click" on touch devices — use "tap"
+  - Use ALL CAPS for emphasis — use bold instead
+  - Use "abort", "kill", "nuke", or "destroy"
+  - Use the word "button" when referring to what to tap (say "tap Done" not "tap the Done button")
+  - Apologize for something that isn't your fault
+  - Use humor that could be misunderstood
+
+sample_content:
+  - "Turn on Location Services to allow Maps to determine your location."
+  - "Delete "Vacation Photos"? You can't undo this action."
+  - "No Results Found"
+  - "Sign in to iCloud to keep your data up to date across your devices."
+
+character_limits:
+  button: 20
+  alert_title: 40
+  alert_message: 120
+  notification_title: 30
+  notification_body: 100
+  menu_item: 25
+  tooltip: 60
+
+terminology:
+  tap: "Tap"  # on iOS — not "click", "press", or "touch"
+  click: "Click"  # on macOS only
+  ok: "OK"  # always caps, for acknowledgment only
+  cancel: "Cancel"
+  delete: "Delete"  # for permanent removal
+  remove: "Remove"  # for non-permanent
+  done: "Done"  # to dismiss a view
+  edit: "Edit"
+  settings: "Settings"  # capital S, refers to the Settings app
+  sign_in: "Sign In"  # Title Case
+  sign_out: "Sign Out"  # Title Case

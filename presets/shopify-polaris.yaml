@@ -1,0 +1,57 @@
+# Shopify Polaris Content Guidelines
+# Based on: https://polaris.shopify.com/content
+
+name: Shopify Polaris
+tone_descriptors:
+  - confident but not arrogant
+  - empathetic but not patronizing
+  - practical and action-oriented
+  - conversational but professional
+
+do:
+  - Write for a grade 7 reading level
+  - Use "you" and "your" to address merchants
+  - Start instructions with a verb
+  - Use contractions (it's, you'll, we're)
+  - Put the most important information first
+  - Write scannable content with short paragraphs
+  - Use specific numbers instead of vague quantities
+  - Write button labels as {verb} + {noun} (e.g., "Add product")
+  - Use "merchant" internally, "you" in the interface
+  - Explain jargon when first introduced
+
+dont:
+  - Use "click" or "tap" — describe the UI element instead
+  - Use "simple", "easy", or "just" — what's simple to you may not be to the merchant
+  - Use "please" or "sorry" excessively
+  - Write in passive voice
+  - Use ALL CAPS for emphasis
+  - Use ampersands (&) — write "and" instead
+  - Use "e.g." or "i.e." — write "for example" or "that is"
+  - Use industry jargon without explanation
+  - Stack multiple actions in one sentence
+
+sample_content:
+  - "Add your first product to get started"
+  - "3 orders need attention"
+  - "This collection will appear on your online store"
+  - "Products will no longer be visible to customers. You can restore them later."
+
+character_limits:
+  button: 30
+  badge: 15
+  banner_heading: 50
+  banner_body: 150
+  toast: 80
+  modal_title: 50
+  empty_state_heading: 40
+
+terminology:
+  store: "store"  # not "shop"
+  admin: "Shopify admin"  # not "back office" or "dashboard"
+  online_store: "online store"  # always lowercase
+  theme: "theme"  # not "template"
+  add: "Add"  # not "Create" for new items
+  remove: "Remove"  # not "Delete" for reversible actions
+  save: "Save"
+  discard: "Discard"  # not "Cancel" when discarding changes

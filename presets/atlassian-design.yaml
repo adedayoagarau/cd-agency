@@ -1,0 +1,59 @@
+# Atlassian Design System Writing Guidelines
+# Based on: https://atlassian.design/content
+
+name: Atlassian Design
+tone_descriptors:
+  - bold but not aggressive
+  - optimistic but not naive
+  - practical but not boring
+  - human but not goofy
+
+do:
+  - Write in active voice
+  - Use "you" to address the user directly
+  - Lead with action in instructions
+  - Use sentence case everywhere (headings, buttons, labels)
+  - Write inclusive, accessible content
+  - Be specific about what happened and what to do next
+  - Use "team" language — collaboration is core
+  - Keep sentences under 25 words
+  - Use contractions naturally
+  - Write button labels as verbs or verb phrases
+
+dont:
+  - Use passive voice
+  - Use Latin abbreviations (e.g., i.e., etc.)
+  - Use gendered language
+  - Use "click here" or "learn more" as link text
+  - Use jargon or acronyms without explanation
+  - Use "please" in error messages — just tell them what to do
+  - Use exclamation marks in UI copy (save for celebrations)
+  - Use "will" for present actions — use present tense
+  - Stack instructions — one action per step
+
+sample_content:
+  - "Move this issue to done? Watchers will be notified."
+  - "Page published. Share with your team."
+  - "Something went wrong loading your board. Refresh the page to try again."
+  - "You're all caught up"
+
+character_limits:
+  button: 25
+  badge: 12
+  flag_title: 50
+  flag_description: 150
+  inline_message: 100
+  tooltip: 80
+  modal_title: 45
+
+terminology:
+  issue: "issue"  # not "ticket" or "item"
+  project: "project"
+  board: "board"
+  page: "page"  # Confluence term
+  space: "space"  # Confluence term
+  sprint: "sprint"
+  backlog: "backlog"
+  assign: "Assign"  # not "Set assignee"
+  move: "Move"  # not "Transfer"
+  archive: "Archive"  # not "Delete" for reversible

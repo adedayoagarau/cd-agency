@@ -1,0 +1,44 @@
+# Example: Add content linting to your PR workflow
+# Save this as .github/workflows/content-lint.yml in your repo
+
+name: Content Lint
+
+on:
+  pull_request:
+    paths:
+      - "**/*.json"
+      - "**/*.md"
+      - "**/*.tsx"
+      - "**/*.jsx"
+      - "src/locales/**"
+
+jobs:
+  content-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint content for quality
+        uses: adedayoagarau/cd-agency/.github/actions/content-lint@main
+        with:
+          file_patterns: "src/locales/**/*.json,src/components/**/*.tsx"
+          content_type: general
+          severity_threshold: warning
+          fail_on_error: true
+          target_reading_grade: "8"
+
+      # Optional: Lint CTAs specifically
+      - name: Lint CTA copy
+        uses: adedayoagarau/cd-agency/.github/actions/content-lint@main
+        with:
+          file_patterns: "src/components/cta/**/*.tsx"
+          content_type: cta
+          fail_on_error: false
+
+      # Optional: Lint error messages specifically
+      - name: Lint error messages
+        uses: adedayoagarau/cd-agency/.github/actions/content-lint@main
+        with:
+          file_patterns: "src/components/errors/**/*.tsx,src/locales/errors.json"
+          content_type: error
+          fail_on_error: true
