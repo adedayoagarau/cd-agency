@@ -2,7 +2,7 @@
 
 A complete AI agency specializing in Content Design. 15 specialized agents for UX writing, microcopy, content strategy, and conversation design — each with structured inputs/outputs, system prompts, and few-shot examples ready for integration.
 
-Built on the principles of [msitarzewski/agency-agents](https://github.com/msitarzewski/agency-agents). Each agent is:
+Each agent is:
 
 - **Specialized**: Deep expertise in specific content design domains
 - **Machine-Parseable**: Structured YAML frontmatter with typed inputs/outputs
