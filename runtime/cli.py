@@ -327,6 +327,171 @@ def workflow_run(name: str, field: tuple[str, ...], as_json: bool) -> None:
         console.print(f"\n[dim]Total: {tokens['input']}→{tokens['output']} tokens | {result.total_latency_ms:.0f}ms[/dim]")
 
 
+# --- Score commands ---
+
+@main.group()
+def score() -> None:
+    """Score and evaluate content quality."""
+    pass
+
+
+def _get_input_text(input_text: str | None, input_file: str | None) -> str:
+    """Get text from --input, --file, or stdin."""
+    if input_text:
+        return input_text
+    if input_file:
+        from pathlib import Path
+        return Path(input_file).read_text(encoding="utf-8")
+    if not sys.stdin.isatty():
+        return sys.stdin.read().strip()
+    click.echo("Error: Provide text via --input, --file, or stdin pipe.", err=True)
+    sys.exit(1)
+
+
+@score.command("readability")
+@click.option("--input", "-i", "input_text", help="Text to score")
+@click.option("--file", "-f", "input_file", type=click.Path(exists=True), help="Read from file")
+@click.option("--compare", "-c", "compare_text", help="'Before' text to compare against")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def score_readability(
+    input_text: str | None, input_file: str | None,
+    compare_text: str | None, as_json: bool,
+) -> None:
+    """Score text for readability metrics (Flesch-Kincaid, etc.)."""
+    from tools.scoring import ReadabilityScorer
+    from tools.report import ScoringReport, ReportFormat
+
+    text = _get_input_text(input_text, input_file)
+    scorer = ReadabilityScorer()
+
+    if compare_text:
+        report = ScoringReport(
+            text=text,
+            readability=scorer.score(text),
+            before_readability=scorer.score(compare_text),
+        )
+    else:
+        report = ScoringReport(text=text, readability=scorer.score(text))
+
+    fmt = ReportFormat.JSON if as_json else ReportFormat.TEXT
+    click.echo(report.render(fmt))
+
+
+@score.command("lint")
+@click.option("--input", "-i", "input_text", help="Text to lint")
+@click.option("--file", "-f", "input_file", type=click.Path(exists=True), help="Read from file")
+@click.option("--type", "-t", "content_type", default="general",
+              type=click.Choice(["general", "cta", "button", "error", "notification", "microcopy"]),
+              help="Content type for type-specific rules")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def score_lint(
+    input_text: str | None, input_file: str | None,
+    content_type: str, as_json: bool,
+) -> None:
+    """Run content lint rules on text."""
+    from tools.linter import ContentLinter
+    from tools.report import ScoringReport, ReportFormat
+
+    text = _get_input_text(input_text, input_file)
+    linter = ContentLinter()
+    results = linter.lint(text, content_type=content_type)
+
+    report = ScoringReport(text=text, lint_results=results)
+    fmt = ReportFormat.JSON if as_json else ReportFormat.TEXT
+    click.echo(report.render(fmt))
+
+
+@score.command("a11y")
+@click.option("--input", "-i", "input_text", help="Text to check")
+@click.option("--file", "-f", "input_file", type=click.Path(exists=True), help="Read from file")
+@click.option("--target-grade", default=8.0, help="Target reading grade level (default: 8)")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def score_a11y(
+    input_text: str | None, input_file: str | None,
+    target_grade: float, as_json: bool,
+) -> None:
+    """Check text for accessibility issues (WCAG compliance)."""
+    from tools.a11y_checker import A11yChecker
+    from tools.report import ScoringReport, ReportFormat
+
+    text = _get_input_text(input_text, input_file)
+    checker = A11yChecker(target_grade=target_grade)
+    result = checker.check(text)
+
+    report = ScoringReport(text=text, a11y_result=result)
+    fmt = ReportFormat.JSON if as_json else ReportFormat.TEXT
+    click.echo(report.render(fmt))
+
+
+@score.command("voice")
+@click.option("--input", "-i", "input_text", help="Text to check")
+@click.option("--file", "-f", "input_file", type=click.Path(exists=True), help="Read from file")
+@click.option("--guide", "-g", type=click.Path(exists=True), help="Brand voice YAML guide")
+@click.option("--no-llm", is_flag=True, help="Use rule-based check (no API call)")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def score_voice(
+    input_text: str | None, input_file: str | None,
+    guide: str | None, no_llm: bool, as_json: bool,
+) -> None:
+    """Check text against a brand voice guide."""
+    from tools.voice_checker import VoiceChecker, VoiceProfile
+    from tools.report import ScoringReport, ReportFormat
+
+    text = _get_input_text(input_text, input_file)
+
+    if not guide:
+        click.echo("Error: --guide is required. Provide a brand voice YAML file.", err=True)
+        sys.exit(1)
+
+    profile = VoiceProfile.from_yaml(guide)
+    checker = VoiceChecker()
+
+    if no_llm:
+        result = checker.check_without_llm(text, profile)
+    else:
+        result = checker.check(text, profile)
+
+    report = ScoringReport(text=text, voice_result=result)
+    fmt = ReportFormat.JSON if as_json else ReportFormat.TEXT
+    click.echo(report.render(fmt))
+
+
+@score.command("all")
+@click.option("--input", "-i", "input_text", help="Text to score")
+@click.option("--file", "-f", "input_file", type=click.Path(exists=True), help="Read from file")
+@click.option("--type", "-t", "content_type", default="general",
+              type=click.Choice(["general", "cta", "button", "error", "notification", "microcopy"]))
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+@click.option("--markdown", "as_md", is_flag=True, help="Output as Markdown")
+def score_all(
+    input_text: str | None, input_file: str | None,
+    content_type: str, as_json: bool, as_md: bool,
+) -> None:
+    """Run all scoring tools (readability + lint + a11y)."""
+    from tools.scoring import ReadabilityScorer
+    from tools.linter import ContentLinter
+    from tools.a11y_checker import A11yChecker
+    from tools.report import ScoringReport, ReportFormat
+
+    text = _get_input_text(input_text, input_file)
+
+    report = ScoringReport(
+        text=text,
+        readability=ReadabilityScorer().score(text),
+        lint_results=ContentLinter().lint(text, content_type=content_type),
+        a11y_result=A11yChecker().check(text),
+    )
+
+    if as_json:
+        fmt = ReportFormat.JSON
+    elif as_md:
+        fmt = ReportFormat.MARKDOWN
+    else:
+        fmt = ReportFormat.TEXT
+
+    click.echo(report.render(fmt))
+
+
 def _build_input(
     agent: Agent,
     input_text: str | None,

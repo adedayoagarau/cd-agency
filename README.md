@@ -147,13 +147,18 @@ cd-agency/
 │   ├── loader.py       # Parses .md files into Agent objects
 │   ├── registry.py     # Agent lookup with aliases and filtering
 │   ├── runner.py       # Executes agents via Anthropic API
-│   └── cli.py          # CLI entry point
-├── tests/              # 66 unit tests
+│   └── cli.py          # CLI entry point (agents, workflows, scoring)
+├── tools/              # Evaluation & scoring tools
+│   ├── scoring.py      # Readability scorer (Flesch-Kincaid, reading ease)
+│   ├── linter.py       # Content lint rules (7+ rules)
+│   ├── a11y_checker.py # WCAG accessibility text checker
+│   ├── voice_checker.py # Brand voice consistency (LLM + rule-based)
+│   └── report.py       # Report generation (text, JSON, Markdown)
+├── tests/              # 164 unit tests
 ├── docs/               # Decision tree and documentation
 │   └── WHEN_TO_USE.md  # Agent selection guide
 ├── examples/           # 17 before/after case studies
 ├── workflows/          # 5 multi-agent pipeline definitions
-├── tools/              # Evaluation & scoring (coming)
 ├── IMPLEMENTATION_PLAN.md
 ├── ROADMAP.md
 └── README.md
@@ -206,12 +211,44 @@ cd-agency workflow run launch-content-package --field feature_name="Team Insight
 - **Localization Prep** — L10n → Generalist simplification → A11y check (sequential)
 - **Notification Suite** — Notifications → Mobile → Tone → CTA (sequential)
 
+## Scoring & Evaluation
+
+Score content quality from the CLI — readability, lint rules, accessibility, and brand voice consistency.
+
+```bash
+# Readability metrics (Flesch-Kincaid, reading ease, complexity)
+cd-agency score readability -i "Your content here"
+
+# Content lint (passive voice, jargon, inclusive language, char limits)
+cd-agency score lint -i "Click here to submit" --type button
+
+# Accessibility check (WCAG text compliance, reading level, ALL CAPS, link text)
+cd-agency score a11y -i "CLICK HERE for more info"
+
+# Brand voice consistency (requires a voice guide YAML)
+cd-agency score voice -i "Your content" --guide brand-voice.yaml --no-llm
+
+# Run all checks at once
+cd-agency score all -i "Your content" --type cta --json-output
+
+# Compare before/after readability
+cd-agency score readability -i "Simple version" --compare "Complex original version"
+```
+
+**4 scoring tools** in [`tools/`](./tools/):
+- **Readability Scorer** — Flesch-Kincaid grade, Flesch Reading Ease, complexity index, reading time
+- **Content Linter** — 7+ rules: action verbs, error actionability, passive voice, char limits, jargon, inclusive language, terminology consistency
+- **Accessibility Checker** — WCAG text-level: reading level, sentence length, ALL CAPS, emoji overuse, link text, alt text
+- **Voice Checker** — LLM-powered or rule-based brand voice consistency scoring (1-10 scale)
+
+Output formats: plain text (terminal), JSON, and Markdown.
+
 ## Roadmap
 
 See [ROADMAP.md](./ROADMAP.md) for the full plan. Next up:
 
-- **Scoring tools** — Automated readability, accessibility, and brand voice scoring
 - **Design system presets** — Pre-configured tone/voice profiles per brand
+- **CI/CD integration** — GitHub Action for content linting in PRs
 
 ## Integration with `content-design-prompt-library`
 
