@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cd-agent-agency"
+name = "cd-agency"
 version = "0.1.0"
 description = "A content design agency powered by specialized AI agents"
 readme = "README.md"
