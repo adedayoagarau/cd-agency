@@ -1,0 +1,36 @@
+name: Localization Prep
+description: >
+  Prepare content for global deployment. The Localization Strategist audits
+  for i18n issues, the Generalist simplifies flagged content for
+  translatability, and the Accessibility Auditor validates the simplified
+  content for inclusive language across cultures.
+
+steps:
+  - name: i18n_audit
+    agent: l10n
+    input_map:
+      content: "$input.content"
+      source_locale: "$input.source_locale"
+      target_locales: "$input.target_locales"
+      content_type: "$input.content_type"
+    output_key: i18n_audit_result
+
+  - name: simplify_for_translation
+    agent: generalist
+    input_map:
+      content_or_context: |
+        Simplify the following content for easier translation. Address the i18n issues found:
+
+        ORIGINAL CONTENT:
+        $steps.i18n_audit_result.content
+
+        Apply these fixes: use short sentences, remove idioms, use consistent terminology.
+      brand_guidelines: "$input.brand_guidelines"
+    output_key: simplified_result
+
+  - name: a11y_validation
+    agent: a11y
+    input_map:
+      content: "$steps.simplified_result.content"
+      content_type: "$input.content_type"
+    output_key: a11y_validation

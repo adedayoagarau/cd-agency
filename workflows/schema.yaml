@@ -1,0 +1,46 @@
+# Workflow Schema Definition
+# -------------------------
+# This file documents the schema for CD Agency workflow definitions.
+# Each workflow YAML file in this directory follows this structure.
+
+# Required fields:
+#   name: string - Human-readable workflow name
+#   description: string - What this workflow does
+#   steps: list - Ordered list of workflow steps
+
+# Step fields:
+#   name: string - Step identifier
+#   agent: string - Agent slug or alias (resolved via AgentRegistry)
+#   input_map: dict - Maps agent input fields to sources:
+#     - "$input.<field>" — references the workflow's initial input
+#     - "$steps.<step_name>.<field>" — references a previous step's output
+#     - "literal string" — a hardcoded value
+#   output_key: string - Name for this step's output (referenced by later steps)
+#   parallel_group: string (optional) - Steps with same group run concurrently
+#   condition: string (optional) - Python expression; step runs only if true
+#     Available variables: steps (dict of previous outputs), input (workflow input)
+
+# Example:
+#
+# name: Content Audit
+# description: Full content quality audit with multiple specialists
+# steps:
+#   - name: generalist_scan
+#     agent: generalist
+#     input_map:
+#       content_or_context: "$input.content"
+#       brand_guidelines: "$input.brand_guidelines"
+#     output_key: generalist_result
+#
+#   - name: tone_check
+#     agent: tone
+#     input_map:
+#       content: "$input.content"
+#       target_tone: "$input.target_tone"
+#     output_key: tone_result
+#
+#   - name: accessibility_audit
+#     agent: a11y
+#     input_map:
+#       content: "$input.content"
+#     output_key: a11y_result

@@ -74,16 +74,85 @@ Plus markdown sections:
 - **Workflow Process** — Step-by-step interaction flow
 - **Success Metrics** — How to measure quality
 
+## Runtime SDK
+
+Agents are executable via the Python runtime. Install and use programmatically or from the CLI.
+
+### Installation
+
+```bash
+pip install -e .
+```
+
+Requires `ANTHROPIC_API_KEY` environment variable (see `.env.example`).
+
+### CLI Usage
+
+```bash
+# List all agents
+cd-agency agent list
+
+# Filter by tag or difficulty
+cd-agency agent list --tag mobile
+cd-agency agent list --difficulty beginner
+
+# Get agent details (supports aliases: "error", "cta", "a11y", "tone", etc.)
+cd-agency agent info error
+
+# Run an agent
+cd-agency agent run error-message-architect -i "API returns 503 during checkout"
+cd-agency agent run microcopy -i "Click here to proceed" -F ui_context="checkout button"
+
+# Pipe input
+echo "Submit" | cd-agency agent run cta
+
+# JSON output
+cd-agency agent run tone -i "Your request has been denied." --json-output
+```
+
+### Python SDK
+
+```python
+from runtime import load_agent, AgentRegistry, Config
+from runtime.runner import AgentRunner
+
+# Load a single agent
+agent = load_agent(Path("content-design/error-message-architect.md"))
+
+# Or use the registry (supports aliases)
+registry = AgentRegistry.from_directory(Path("content-design"))
+agent = registry.get("error")  # alias for error-message-architect
+
+# Run the agent
+config = Config.from_env()
+runner = AgentRunner(config)
+result = runner.run(agent, {
+    "error_scenario": "Payment gateway timeout",
+    "severity": "critical",
+    "target_audience": "non-technical shopper",
+})
+
+print(result.content)       # The agent's response
+print(result.input_tokens)  # Token usage
+print(result.latency_ms)    # Response time
+```
+
 ## Project Structure
 
 ```
 cd-agency/
 ├── content-design/     # 15 agent definition files
+├── runtime/            # Python SDK — loader, runner, registry, CLI
+│   ├── agent.py        # Core Agent model
+│   ├── loader.py       # Parses .md files into Agent objects
+│   ├── registry.py     # Agent lookup with aliases and filtering
+│   ├── runner.py       # Executes agents via Anthropic API
+│   └── cli.py          # CLI entry point
+├── tests/              # 45 unit tests
 ├── docs/               # Decision tree and documentation
 │   └── WHEN_TO_USE.md  # Agent selection guide
 ├── examples/           # Before/after case studies (coming)
 ├── workflows/          # Multi-agent pipeline definitions (coming)
-├── runtime/            # Execution engine (coming)
 ├── tools/              # Evaluation & scoring (coming)
 ├── IMPLEMENTATION_PLAN.md
 ├── ROADMAP.md
@@ -94,11 +163,9 @@ cd-agency/
 
 See [ROADMAP.md](./ROADMAP.md) for the full plan. Next up:
 
-- **Runtime engine** — Make agents executable via Python SDK
 - **Multi-agent workflows** — Chain agents into pipelines (Content Audit, Launch Package, etc.)
 - **Before/after examples** — Real case studies proving quality improvements
 - **Scoring tools** — Automated readability, accessibility, and brand voice scoring
-- **CLI** — Run agents from the terminal
 
 ## Integration with `content-design-prompt-library`
 

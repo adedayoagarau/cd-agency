@@ -1,0 +1,57 @@
+name: Launch Content Package
+description: >
+  Complete content package for a product launch. The Onboarding Designer,
+  CTA Specialist, and Empty State Specialist work in parallel to create
+  their components, then the Generalist consolidates everything into a
+  cohesive, voice-consistent package.
+
+steps:
+  - name: onboarding_flow
+    agent: onboarding
+    input_map:
+      product_description: "$input.product_description"
+      activation_moment: "$input.activation_moment"
+      target_user: "$input.target_audience"
+      platform: "$input.platform"
+    output_key: onboarding_result
+    parallel_group: launch_content
+
+  - name: cta_suite
+    agent: cta
+    input_map:
+      current_cta: "Sign up"
+      goal: "$input.primary_goal"
+      page_context: "$input.page_context"
+      audience: "$input.target_audience"
+      brand_voice: "$input.brand_guidelines"
+    output_key: cta_result
+    parallel_group: launch_content
+
+  - name: empty_states
+    agent: empty
+    input_map:
+      empty_state_type: "first-use"
+      ui_section: "$input.key_sections"
+      desired_action: "$input.activation_moment"
+      brand_voice: "$input.brand_guidelines"
+      platform: "$input.platform"
+    output_key: empty_state_result
+    parallel_group: launch_content
+
+  - name: consolidate
+    agent: generalist
+    input_map:
+      content_or_context: |
+        Consolidate these launch content pieces into a cohesive package with consistent voice:
+
+        ONBOARDING FLOW:
+        $steps.onboarding_result.content
+
+        CTAs:
+        $steps.cta_result.content
+
+        EMPTY STATES:
+        $steps.empty_state_result.content
+      brand_guidelines: "$input.brand_guidelines"
+      target_audience: "$input.target_audience"
+    output_key: consolidated

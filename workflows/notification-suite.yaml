@@ -1,0 +1,45 @@
+name: Notification Suite
+description: >
+  Complete notification content across channels. The Notification Designer
+  drafts multi-channel copy, the Mobile UX Writer optimizes for push/mobile,
+  the Tone Agent ensures brand consistency, and the CTA Specialist sharpens
+  the action elements.
+
+steps:
+  - name: draft_notifications
+    agent: notifications
+    input_map:
+      trigger_event: "$input.trigger_event"
+      channel: "$input.channel"
+      urgency: "$input.urgency"
+      user_segment: "$input.user_segment"
+      brand_voice: "$input.brand_guidelines"
+    output_key: notification_draft
+
+  - name: mobile_optimize
+    agent: mobile
+    input_map:
+      content: "$steps.notification_draft.content"
+      element_type: "push-notification"
+      platform: "$input.platform"
+      character_limit: "120"
+    output_key: mobile_optimized
+
+  - name: tone_consistency
+    agent: tone
+    input_map:
+      content: "$steps.notification_draft.content"
+      target_tone: "$input.target_tone"
+      brand_voice_guide: "$input.brand_guidelines"
+      channel: "notification"
+    output_key: tone_check
+
+  - name: sharpen_ctas
+    agent: cta
+    input_map:
+      current_cta: "$steps.notification_draft.content"
+      goal: "$input.desired_action"
+      page_context: "notification"
+      audience: "$input.user_segment"
+      brand_voice: "$input.brand_guidelines"
+    output_key: cta_optimized

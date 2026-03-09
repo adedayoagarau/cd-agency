@@ -1,0 +1,41 @@
+name: Error Message Pipeline
+description: >
+  End-to-end error message creation. The Error Architect drafts the message,
+  the Tone Agent validates voice alignment, the Accessibility Auditor checks
+  readability, and the Mobile UX Writer creates a mobile-optimized variant.
+
+steps:
+  - name: draft_error
+    agent: error
+    input_map:
+      error_scenario: "$input.error_scenario"
+      technical_details: "$input.technical_details"
+      severity: "$input.severity"
+      target_audience: "$input.target_audience"
+      brand_guidelines: "$input.brand_guidelines"
+    output_key: error_draft
+
+  - name: tone_validation
+    agent: tone
+    input_map:
+      content: "$steps.error_draft.content"
+      target_tone: "empathetic, clear, supportive"
+      brand_voice_guide: "$input.brand_guidelines"
+      channel: "error state"
+    output_key: tone_check
+
+  - name: a11y_check
+    agent: a11y
+    input_map:
+      content: "$steps.error_draft.content"
+      content_type: "error message"
+    output_key: a11y_check
+
+  - name: mobile_variant
+    agent: mobile
+    input_map:
+      content: "$steps.error_draft.content"
+      element_type: "alert"
+      platform: "$input.platform"
+      desktop_version: "$steps.error_draft.content"
+    output_key: mobile_version
