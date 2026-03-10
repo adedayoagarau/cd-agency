@@ -5,10 +5,36 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cd-agency"
 version = "0.1.0"
-description = "A content design agency powered by specialized AI agents"
+description = "AI-powered content design agents for UX writers, conversation designers, and product teams"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
+keywords = [
+    "content design",
+    "UX writing",
+    "AI agents",
+    "microcopy",
+    "conversation design",
+    "content strategy",
+    "accessibility",
+    "WCAG",
+    "error messages",
+    "onboarding",
+    "design system",
+    "CLI",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Other Audience",
+    "Topic :: Software Development :: User Interfaces",
+    "Topic :: Text Processing :: Linguistic",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
 dependencies = [
     "anthropic>=0.39.0",
     "pyyaml>=6.0",
