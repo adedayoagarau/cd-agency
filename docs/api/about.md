@@ -45,7 +45,7 @@ cd-agency/
 ├── content-design/    15 agent definitions (.md with YAML frontmatter)
 ├── workflows/         5 workflow pipelines (.yaml)
 ├── presets/           4 design system voice profiles (.yaml)
-└── tests/             242 unit tests (pytest)
+└── tests/             278 unit tests (pytest)
 ```
 
 ## Design Principles

@@ -2,6 +2,18 @@
 
 > Stability: Stable
 
+## Install from PyPI
+
+```bash
+pip install cd-agency
+```
+
+To include the REST API server (FastAPI + Uvicorn):
+
+```bash
+pip install cd-agency[api]
+```
+
 ## Install from Source
 
 ```bash
@@ -22,7 +34,7 @@ This adds `pytest` and `pytest-asyncio` for running the test suite.
 
 ```bash
 cd-agency --version
-# cd-agency, version 0.1.0
+# cd-agency, version 0.2.0
 ```
 
 ```bash
