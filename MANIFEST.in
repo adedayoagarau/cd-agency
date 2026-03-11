@@ -1,0 +1,5 @@
+recursive-include content-design *.md
+recursive-include presets *.yaml
+recursive-include workflows *.yaml
+include LICENSE
+include README.md

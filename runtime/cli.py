@@ -26,7 +26,7 @@ def _get_registry(agents_dir: str | None = None) -> AgentRegistry:
 
 
 @click.group()
-@click.version_option(version="0.1.0", prog_name="cd-agency")
+@click.version_option(version="0.2.0", prog_name="cd-agency")
 def main() -> None:
     """Content Design Agency — AI-powered content design agents."""
     pass

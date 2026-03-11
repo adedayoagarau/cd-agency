@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cd-agency"
-version = "0.1.1"
+version = "0.2.0"
 description = "AI-powered content design agents for UX writers, conversation designers, and product teams"
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
 requires-python = ">=3.10"
 keywords = [
     "content design",
@@ -22,6 +22,9 @@ keywords = [
     "onboarding",
     "design system",
     "CLI",
+    "MCP",
+    "Figma",
+    "FastAPI",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -29,7 +32,6 @@ classifiers = [
     "Intended Audience :: Other Audience",
     "Topic :: Software Development :: User Interfaces",
     "Topic :: Text Processing :: Linguistic",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -52,6 +54,11 @@ docs = [
     "mkdocs>=1.5",
     "mkdocs-material>=9.5",
 ]
+api = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.25.0",
+    "python-multipart>=0.0.6",
+]
 
 [project.scripts]
 cd-agency = "runtime.cli:main"
@@ -62,7 +69,10 @@ Repository = "https://github.com/adedayoagarau/cd-agency"
 Issues = "https://github.com/adedayoagarau/cd-agency/issues"
 
 [tool.setuptools.packages.find]
-include = ["runtime*", "tools*"]
+include = ["runtime*", "tools*", "mcp*", "api*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.md", "*.yaml", "*.yml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
