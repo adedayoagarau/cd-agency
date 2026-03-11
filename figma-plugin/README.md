@@ -28,10 +28,10 @@ The API exposes these endpoints used by the plugin:
 
 | Endpoint | Method | Description |
 |---|---|---|
-| `/api/run` | POST | Run an agent on input text |
-| `/api/score` | POST | Score text (readability, a11y) |
-| `/api/agents` | GET | List available agents |
-| `/api/presets` | GET | List design system presets |
+| `/api/v1/agents/{slug}/run` | POST | Run an agent on input text |
+| `/api/v1/score/all` | POST | Score text (readability, lint, a11y) |
+| `/api/v1/agents` | GET | List available agents |
+| `/api/v1/presets` | GET | List design system presets |
 
 ## Build & Install
 

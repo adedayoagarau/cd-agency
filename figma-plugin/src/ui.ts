@@ -205,7 +205,7 @@ function suggest(text: string): AgentDef[] {
 async function apiCall(path: string, body?: Record<string, unknown>): Promise<unknown> {
   const url = `${apiUrl.replace(/\/+$/, "")}${path}`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
+  if (apiKey) headers["X-API-Key"] = apiKey;
 
   const resp = await fetch(url, {
     method: body ? "POST" : "GET",
@@ -227,22 +227,34 @@ async function callRunAgent(
   extra: Record<string, string>,
 ): Promise<RunResult> {
   const input: Record<string, string> = { text, ...extra };
-  const body: Record<string, unknown> = { agent: agentId, input };
+  const body: Record<string, unknown> = { input };
   if (preset) body.preset = preset;
 
-  const data = (await apiCall("/api/run", body)) as Record<string, unknown>;
+  const data = (await apiCall(`/api/v1/agents/${agentId}/run`, body)) as Record<string, unknown>;
   const content = (data.content as string) || "";
   return {
     content,
     suggestions: parseSuggestions(content),
-    score: (data.score as ScoreResult) || undefined,
-    model: data.model as string | undefined,
-    tokens: data.tokens as { input: number; output: number } | undefined,
+    score: undefined,
+    model: (data.model as string) || undefined,
+    tokens: data.input_tokens
+      ? { input: data.input_tokens as number, output: data.output_tokens as number }
+      : undefined,
   };
 }
 
 async function callScore(text: string): Promise<ScoreResult> {
-  return (await apiCall("/api/score", { text })) as ScoreResult;
+  const data = (await apiCall("/api/v1/score/all", { text })) as Record<string, unknown>;
+  const readability = data.readability as Record<string, unknown> | undefined;
+  const a11y = data.a11y as Record<string, unknown> | undefined;
+  return {
+    readability: readability
+      ? { grade: readability.flesch_kincaid_grade as number, ease: readability.flesch_reading_ease as number }
+      : undefined,
+    a11y: a11y
+      ? { passed: a11y.passed as boolean, issues: a11y.issue_count as number }
+      : undefined,
+  };
 }
 
 // =====================================================================

@@ -33,7 +33,7 @@ dont:
 
 sample_content:
   - "Turn on Location Services to allow Maps to determine your location."
-  - "Delete "Vacation Photos"? You can't undo this action."
+  - 'Delete "Vacation Photos"? You can''t undo this action.'
   - "No Results Found"
   - "Sign in to iCloud to keep your data up to date across your devices."
 

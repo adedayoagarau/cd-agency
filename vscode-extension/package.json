@@ -40,7 +40,7 @@
       "properties": {
         "cdAgency.apiUrl": {
           "type": "string",
-          "default": "http://localhost:8100",
+          "default": "http://localhost:8000",
           "description": "Base URL for the CD Agency API server"
         },
         "cdAgency.defaultPreset": {

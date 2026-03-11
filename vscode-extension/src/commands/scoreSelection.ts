@@ -44,14 +44,15 @@ export async function scoreSelectionCommand(): Promise<void> {
     return;
   }
 
-  // For a brief result, use an information message; for detailed results, open
-  // a webview panel.
-  if (result.issues.length === 0 && result.scores.length <= 3) {
-    const summary = result.scores
-      .map((s) => `${s.name}: ${s.grade} (${s.score}/10)`)
-      .join("  |  ");
+  // Show a brief summary or open a detailed webview panel.
+  const grade = result.readability.flesch_kincaid_grade;
+  const ease = result.readability.ease_label;
+  const lintFails = result.lint.failed_count;
+  const a11yPass = result.a11y.passed ? "Pass" : "Fail";
+
+  if (lintFails === 0 && result.a11y.issue_count === 0) {
     vscode.window.showInformationMessage(
-      `CD Agency Score: ${result.overall}/10 — ${summary}`
+      `CD Agency Score: Grade ${grade.toFixed(1)} (${ease}) | Lint: all passed | A11y: ${a11yPass}`
     );
   } else {
     createScorePanel(result, selectedText);

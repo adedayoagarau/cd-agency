@@ -47,7 +47,7 @@ export async function runAgentCommand(): Promise<void> {
       label: a.name,
       description: a.description,
       detail: a.tags.join(", "),
-      agent: a,
+      slug: a.slug,
     })),
     {
       placeHolder: "Choose a content design agent",
@@ -69,7 +69,7 @@ export async function runAgentCommand(): Promise<void> {
     },
     async () => {
       try {
-        return await api.runAgent(picked.label, selectedText);
+        return await api.runAgent(picked.slug, selectedText);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         vscode.window.showErrorMessage(message);

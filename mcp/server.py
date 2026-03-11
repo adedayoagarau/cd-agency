@@ -282,6 +282,18 @@ def _suggest_agent_for_text(text: str, context: str = "") -> dict[str, Any]:
         suggestions.append(("empty-state-placeholder-specialist", "Text appears to be an empty state"))
     if any(w in lower for w in ["privacy", "data", "consent", "cookie", "terms"]):
         suggestions.append(("privacy-legal-content-simplifier", "Text contains privacy/legal language"))
+    if any(w in lower for w in ["accessible", "a11y", "screen reader", "alt text", "wcag"]):
+        suggestions.append(("accessibility-content-auditor", "Text may need accessibility review"))
+    if any(w in lower for w in ["tone", "voice", "brand", "mood", "feel"]):
+        suggestions.append(("tone-evaluation-agent", "Text may benefit from tone evaluation"))
+    if any(w in lower for w in ["mobile", "app", "phone", "tap", "swipe"]):
+        suggestions.append(("mobile-ux-writer", "Text appears to be mobile UI copy"))
+    if any(w in lower for w in ["chat", "bot", "assistant", "conversation", "dialog"]):
+        suggestions.append(("conversational-ai-designer", "Text appears to be conversational UI"))
+    if any(w in lower for w in ["translate", "localize", "i18n", "international", "language"]):
+        suggestions.append(("localization-content-strategist", "Text may need localization review"))
+    if any(w in lower for w in ["docs", "documentation", "api", "guide", "reference", "tutorial"]):
+        suggestions.append(("technical-documentation-writer", "Text appears to be technical documentation"))
     if len(text) < 50:
         suggestions.append(("microcopy-review-agent", "Short text suitable for microcopy review"))
 
@@ -311,6 +323,13 @@ def _load_presets() -> list[dict[str, Any]]:
     return presets
 
 
+def _require_arg(arguments: dict[str, Any], key: str) -> Any:
+    """Return the value for *key* or raise with a clear error message."""
+    if key not in arguments:
+        raise ValueError(f"Missing required argument: '{key}'")
+    return arguments[key]
+
+
 def handle_tool_call(name: str, arguments: dict[str, Any]) -> Any:
     """Execute an MCP tool call and return the result."""
     registry = _get_registry()
@@ -324,20 +343,24 @@ def handle_tool_call(name: str, arguments: dict[str, Any]) -> Any:
         return [_agent_to_dict(a) for a in agents]
 
     elif name == "get_agent_info":
-        agent = registry.get(arguments["agent"])
+        agent_id = _require_arg(arguments, "agent")
+        agent = registry.get(agent_id)
         if not agent:
-            return {"error": f"Agent '{arguments['agent']}' not found. Use list_agents to see available agents."}
+            return {"error": f"Agent '{agent_id}' not found. Use list_agents to see available agents."}
         return _agent_to_dict(agent)
 
     elif name == "suggest_agent":
-        return _suggest_agent_for_text(arguments["text"], arguments.get("context", ""))
+        text = _require_arg(arguments, "text")
+        return _suggest_agent_for_text(text, arguments.get("context", ""))
 
     elif name == "score_readability":
-        result = _get_scorer().score(arguments["text"])
+        text = _require_arg(arguments, "text")
+        result = _get_scorer().score(text)
         return result.to_dict()
 
     elif name == "lint_content":
-        results = _get_linter().lint(arguments["text"])
+        text = _require_arg(arguments, "text")
+        results = _get_linter().lint(text)
         return {
             "total_issues": len(results),
             "issues": [
@@ -352,7 +375,8 @@ def handle_tool_call(name: str, arguments: dict[str, Any]) -> Any:
         }
 
     elif name == "check_accessibility":
-        result = _get_a11y().check(arguments["text"])
+        text = _require_arg(arguments, "text")
+        result = _get_a11y().check(text)
         return {
             "passed": result.passed,
             "issue_count": len(result.issues),
@@ -368,7 +392,7 @@ def handle_tool_call(name: str, arguments: dict[str, Any]) -> Any:
         }
 
     elif name == "score_all":
-        text = arguments["text"]
+        text = _require_arg(arguments, "text")
         readability = _get_scorer().score(text).to_dict()
         lint_results = _get_linter().lint(text)
         a11y_result = _get_a11y().check(text)
@@ -386,7 +410,9 @@ def handle_tool_call(name: str, arguments: dict[str, Any]) -> Any:
         }
 
     elif name == "compare_text":
-        return _get_scorer().compare(arguments["before"], arguments["after"])
+        before = _require_arg(arguments, "before")
+        after = _require_arg(arguments, "after")
+        return _get_scorer().compare(before, after)
 
     elif name == "list_presets":
         presets = _load_presets()
