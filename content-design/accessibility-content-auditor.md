@@ -41,6 +41,7 @@ knowledge:
   - research/gov-uk-content-principles
   - frameworks/readability-formulas
   - books/letting-go-of-the-words
+  - operations/writing-for-localization
 related_agents:
   - content-designer-generalist
   - tone-evaluation-agent

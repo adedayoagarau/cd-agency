@@ -44,6 +44,7 @@ knowledge:
   - research/gov-uk-content-principles
   - research/accessibility-research
   - books/content-design-sarah-richards
+  - operations/writing-for-localization
 related_agents:
   - content-designer-generalist
   - accessibility-content-auditor

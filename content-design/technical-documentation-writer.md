@@ -42,6 +42,7 @@ knowledge:
   - books/letting-go-of-the-words
   - case-studies/stripe-developer-docs
   - case-studies/github-developer-content
+  - emerging/ai-content-guidelines
 related_agents:
   - content-designer-generalist
   - accessibility-content-auditor

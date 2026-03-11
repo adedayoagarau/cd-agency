@@ -46,6 +46,7 @@ knowledge:
   - books/microcopy-complete-guide
   - research/nielsen-norman-findings
   - case-studies/slack-voice-and-errors
+  - patterns/error-taxonomy
 related_agents:
   - content-designer-generalist
   - accessibility-content-auditor

@@ -45,6 +45,7 @@ knowledge:
   - books/conversational-design
   - research/nielsen-norman-findings
   - case-studies/duolingo-onboarding
+  - patterns/notification-framework
 related_agents:
   - mobile-ux-writer
   - cta-optimization-specialist

@@ -45,6 +45,8 @@ knowledge:
   - books/microcopy-complete-guide
   - research/nielsen-norman-findings
   - case-studies/duolingo-onboarding
+  - research/persuasion-psychology
+  - operations/content-measurement
 related_agents:
   - microcopy-review-agent
   - content-designer-generalist

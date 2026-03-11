@@ -41,6 +41,7 @@ knowledge:
   - frameworks/readability-formulas
   - books/letting-go-of-the-words
   - books/content-design-sarah-richards
+  - operations/content-governance
 related_agents:
   - accessibility-content-auditor
   - content-designer-generalist

@@ -44,6 +44,9 @@ knowledge:
   - books/content-design-sarah-richards
   - books/nicely-said
   - research/nielsen-norman-findings
+  - patterns/content-patterns-library
+  - operations/content-governance
+  - emerging/ai-content-guidelines
 related_agents:
   - microcopy-review-agent
   - tone-evaluation-agent

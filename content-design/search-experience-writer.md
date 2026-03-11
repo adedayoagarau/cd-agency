@@ -45,6 +45,7 @@ knowledge:
   - frameworks/usability-heuristics
   - books/dont-make-me-think
   - research/nielsen-norman-findings
+  - patterns/content-patterns-library
 related_agents:
   - empty-state-placeholder-specialist
   - microcopy-review-agent

@@ -43,6 +43,7 @@ knowledge:
   - case-studies/slack-voice-and-errors
   - case-studies/github-developer-content
   - research/nielsen-norman-findings
+  - patterns/content-patterns-library
 related_agents:
   - onboarding-flow-designer
   - cta-optimization-specialist

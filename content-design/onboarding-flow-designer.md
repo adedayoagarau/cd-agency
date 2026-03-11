@@ -46,6 +46,8 @@ knowledge:
   - case-studies/duolingo-onboarding
   - books/dont-make-me-think
   - research/nielsen-norman-findings
+  - patterns/content-patterns-library
+  - operations/content-measurement
 related_agents:
   - content-designer-generalist
   - cta-optimization-specialist

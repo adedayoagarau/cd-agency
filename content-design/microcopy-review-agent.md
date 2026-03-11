@@ -46,6 +46,8 @@ knowledge:
   - books/microcopy-complete-guide
   - books/dont-make-me-think
   - research/nielsen-norman-findings
+  - patterns/form-content
+  - research/persuasion-psychology
 related_agents:
   - content-designer-generalist
   - cta-optimization-specialist

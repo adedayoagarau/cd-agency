@@ -41,6 +41,7 @@ knowledge:
   - books/strategic-writing-for-ux
   - case-studies/mailchimp-voice-and-tone
   - case-studies/slack-voice-and-errors
+  - operations/content-governance
 related_agents:
   - content-designer-generalist
   - microcopy-review-agent

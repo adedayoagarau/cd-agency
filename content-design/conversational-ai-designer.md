@@ -45,6 +45,8 @@ knowledge:
   - foundations/cognitive-load
   - foundations/progressive-disclosure
   - research/nielsen-norman-findings
+  - emerging/voice-ui-patterns
+  - emerging/ai-content-guidelines
 related_agents:
   - content-designer-generalist
   - tone-evaluation-agent

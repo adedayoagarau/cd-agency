@@ -45,6 +45,7 @@ knowledge:
   - books/microcopy-complete-guide
   - books/dont-make-me-think
   - research/nielsen-norman-findings
+  - research/mobile-content-research
 related_agents:
   - microcopy-review-agent
   - notification-content-designer
