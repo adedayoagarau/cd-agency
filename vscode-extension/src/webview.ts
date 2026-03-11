@@ -33,7 +33,7 @@ export function createResultPanel(
   panel.webview.onDidReceiveMessage(async (message: { command: string }) => {
     if (message.command === "apply") {
       const success = await editor.edit((editBuilder) => {
-        editBuilder.replace(selection, result.suggestion);
+        editBuilder.replace(selection, result.content);
       });
       if (success) {
         vscode.window.showInformationMessage(
@@ -148,12 +148,8 @@ function getResultHtml(result: AgentResult): string {
     </div>
     <div class="panel">
       <h3>After</h3>
-      <pre>${escapeHtml(result.suggestion)}</pre>
+      <pre>${escapeHtml(result.content)}</pre>
     </div>
-  </div>
-
-  <div class="explanation">
-    <strong>Explanation:</strong> ${escapeHtml(result.explanation)}
   </div>
 
   <div class="actions">
@@ -171,31 +167,32 @@ function getResultHtml(result: AgentResult): string {
 }
 
 function getScoreHtml(result: ScoreResult, originalText: string): string {
-  const scoreRows = result.scores
-    .map(
-      (s) => /* html */ `
-      <tr>
-        <td><strong>${escapeHtml(s.name)}</strong></td>
-        <td>${s.score}/10</td>
-        <td>${escapeHtml(s.grade)}</td>
-        <td>${escapeHtml(s.details)}</td>
-      </tr>`
-    )
-    .join("");
+  const r = result.readability;
+  const failedLintIssues = result.lint.issues.filter((i) => !i.passed);
+  const a11yIssues = result.a11y.issues;
 
-  const issueRows = result.issues
-    .map(
+  const issueRows = [
+    ...failedLintIssues.map(
       (i) => /* html */ `
       <tr>
-        <td class="severity-${i.severity}">${i.severity}</td>
+        <td class="severity-${i.severity}">lint: ${escapeHtml(i.severity)}</td>
         <td>${escapeHtml(i.rule)}</td>
         <td>${escapeHtml(i.message)}</td>
-        <td>${i.suggestion ? escapeHtml(i.suggestion) : "—"}</td>
+        <td>${i.suggestion ? escapeHtml(i.suggestion) : "\u2014"}</td>
       </tr>`
-    )
-    .join("");
+    ),
+    ...a11yIssues.map(
+      (i) => /* html */ `
+      <tr>
+        <td class="severity-${i.severity}">a11y: ${escapeHtml(i.severity)}</td>
+        <td>${escapeHtml(i.rule)}</td>
+        <td>${escapeHtml(i.message)}</td>
+        <td>${i.suggestion ? escapeHtml(i.suggestion) : "\u2014"}</td>
+      </tr>`
+    ),
+  ].join("");
 
-  const overallPercent = Math.round(result.overall * 10);
+  const easePercent = Math.round(Math.max(0, Math.min(100, r.flesch_reading_ease)));
 
   return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -205,11 +202,8 @@ function getScoreHtml(result: ScoreResult, originalText: string): string {
   <title>CD Agency Score</title>
   <style>
     ${getBaseStyles()}
-    .overall {
-      font-size: 28px;
-      font-weight: bold;
-      margin: 16px 0;
-    }
+    .metric { margin: 8px 0; }
+    .metric strong { display: inline-block; width: 180px; }
     .bar {
       height: 10px;
       background: var(--vscode-panel-border, #333);
@@ -221,7 +215,7 @@ function getScoreHtml(result: ScoreResult, originalText: string): string {
       height: 100%;
       border-radius: 5px;
       background: var(--vscode-charts-green, #4caf50);
-      width: ${overallPercent}%;
+      width: ${easePercent}%;
     }
     table {
       width: 100%;
@@ -248,6 +242,9 @@ function getScoreHtml(result: ScoreResult, originalText: string): string {
       font-size: var(--vscode-editor-font-size, 13px);
       margin-bottom: 16px;
     }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+    .badge.pass { background: #1b5e20; color: #a5d6a7; }
+    .badge.fail { background: #b71c1c; color: #ef9a9a; }
   </style>
 </head>
 <body>
@@ -255,24 +252,25 @@ function getScoreHtml(result: ScoreResult, originalText: string): string {
 
   <div class="text-preview">${escapeHtml(originalText)}</div>
 
-  <div class="overall">${result.overall}/10</div>
+  <h3>Readability</h3>
+  <div class="metric"><strong>Flesch Reading Ease:</strong> ${r.flesch_reading_ease.toFixed(1)} (${escapeHtml(r.ease_label)})</div>
   <div class="bar"><div class="bar-fill"></div></div>
+  <div class="metric"><strong>Flesch-Kincaid Grade:</strong> ${r.flesch_kincaid_grade.toFixed(1)} (${escapeHtml(r.grade_label)})</div>
+  <div class="metric"><strong>Word Count:</strong> ${r.word_count}</div>
 
-  <h3>Scores</h3>
-  <table>
-    <thead>
-      <tr><th>Metric</th><th>Score</th><th>Grade</th><th>Details</th></tr>
-    </thead>
-    <tbody>${scoreRows}</tbody>
-  </table>
+  <h3>Lint</h3>
+  <div class="metric">${result.lint.passed_count} passed, ${result.lint.failed_count} failed of ${result.lint.total_rules} rules</div>
+
+  <h3>Accessibility <span class="badge ${result.a11y.passed ? "pass" : "fail"}">${result.a11y.passed ? "PASS" : "FAIL"}</span></h3>
+  <div class="metric">${escapeHtml(result.a11y.label)} (${result.a11y.issue_count} issue${result.a11y.issue_count !== 1 ? "s" : ""})</div>
 
   ${
-    result.issues.length > 0
+    failedLintIssues.length + a11yIssues.length > 0
       ? /* html */ `
-  <h3>Issues (${result.issues.length})</h3>
+  <h3>Issues (${failedLintIssues.length + a11yIssues.length})</h3>
   <table>
     <thead>
-      <tr><th>Severity</th><th>Rule</th><th>Message</th><th>Suggestion</th></tr>
+      <tr><th>Type</th><th>Rule</th><th>Message</th><th>Suggestion</th></tr>
     </thead>
     <tbody>${issueRows}</tbody>
   </table>`

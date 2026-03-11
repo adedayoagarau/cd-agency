@@ -124,19 +124,23 @@ The FastAPI backend provides HTTP endpoints for any integration.
 
 ### Endpoints
 
+All endpoints are under the `/api/v1` prefix. The agent run endpoint requires the agent slug in the URL path and accepts `{"input": {"text": "..."}, "preset": "material-design"}` as the request body.
+
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/api/v1/agents` | List all agents |
-| `GET` | `/api/v1/agents/{slug}` | Get agent details |
-| `POST` | `/api/v1/agents/{slug}/run` | Run an agent |
-| `GET` | `/api/v1/agents/search?q=` | Search agents |
-| `POST` | `/api/v1/score/readability` | Score readability |
-| `POST` | `/api/v1/score/lint` | Run linter |
-| `POST` | `/api/v1/score/a11y` | Check accessibility |
-| `POST` | `/api/v1/score/all` | All scores combined |
-| `GET` | `/api/v1/presets` | List presets |
-| `GET` | `/api/v1/presets/{name}` | Get preset details |
+| `GET` | `/api/v1/agents` | List all agents (returns slug, name, description, tags) |
+| `GET` | `/api/v1/agents/{slug}` | Get full agent details including inputs/outputs |
+| `POST` | `/api/v1/agents/{slug}/run` | Run an agent on input text |
+| `GET` | `/api/v1/agents/search?q=` | Search agents by name/description/tags |
+| `POST` | `/api/v1/score/readability` | Flesch-Kincaid readability scoring |
+| `POST` | `/api/v1/score/lint` | Content linter (UX writing rules) |
+| `POST` | `/api/v1/score/a11y` | WCAG accessibility text checker |
+| `POST` | `/api/v1/score/all` | All scores combined (readability + lint + a11y) |
+| `GET` | `/api/v1/presets` | List design system presets |
+| `GET` | `/api/v1/presets/{name}` | Get preset voice guidelines |
 | `GET` | `/health` | Health check |
+
+Scoring endpoints accept `{"text": "your content here"}`. Authentication is via `X-API-Key` header (optional, controlled by `CD_AGENCY_REQUIRE_AUTH` env var).
 
 ### Run the API
 

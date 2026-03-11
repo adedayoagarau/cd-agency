@@ -78,17 +78,15 @@ function extractJsonStrings(
 }
 
 /**
- * Map API severity to VS Code DiagnosticSeverity.
+ * Map API severity string to VS Code DiagnosticSeverity.
  */
-function toSeverity(
-  severity: "error" | "warning" | "info"
-): vscode.DiagnosticSeverity {
+function toSeverity(severity: string): vscode.DiagnosticSeverity {
   switch (severity) {
     case "error":
       return vscode.DiagnosticSeverity.Error;
     case "warning":
       return vscode.DiagnosticSeverity.Warning;
-    case "info":
+    default:
       return vscode.DiagnosticSeverity.Information;
   }
 }
@@ -127,26 +125,22 @@ export async function updateDiagnostics(
   // Lint each extracted string. We batch-lint all strings to keep API calls
   // manageable; in production you would debounce and/or cache.
   for (const extracted of strings) {
-    let issues: api.LintIssue[];
+    let lintResult: api.LintResult;
     try {
-      issues = await api.lintText(extracted.text);
+      lintResult = await api.lintText(extracted.text);
     } catch {
       // If the API is unreachable, silently skip rather than flooding errors.
       continue;
     }
 
-    for (const issue of issues) {
-      // Map the issue offset (relative to the extracted string) back to the
-      // document range.
-      const issueStart = document.positionAt(
-        document.offsetAt(extracted.range.start) + issue.offset
-      );
-      const issueEnd = document.positionAt(
-        document.offsetAt(extracted.range.start) + issue.offset + issue.length
-      );
+    // Only report failed lint rules as diagnostics.
+    const failedIssues = lintResult.issues.filter((i) => !i.passed);
 
+    for (const issue of failedIssues) {
+      // The lint API doesn't provide character offsets, so we highlight the
+      // entire extracted string range for each failed rule.
       const diagnostic = new vscode.Diagnostic(
-        new vscode.Range(issueStart, issueEnd),
+        extracted.range,
         `[cd-agency] ${issue.message}`,
         toSeverity(issue.severity)
       );
