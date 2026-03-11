@@ -6,5 +6,9 @@ dist/
 build/
 .eggs/
 .env
+.cd-agency.yaml
+.cd-agency.yml
+cd-agency.yaml
 .pytest_cache/
 *.egg
+site/

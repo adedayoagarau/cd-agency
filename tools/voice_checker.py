@@ -1,6 +1,7 @@
 """Brand voice consistency checker using LLM scoring."""
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -166,7 +167,7 @@ class VoiceChecker:
 
         # Handle markdown code blocks
         if "```" in text:
-            match = __import__("re").search(r"```(?:json)?\s*(.*?)```", text, __import__("re").DOTALL)
+            match = re.search(r"```(?:json)?\s*(.*?)```", text, re.DOTALL)
             if match:
                 text = match.group(1).strip()
 

@@ -1,0 +1,106 @@
+site_name: CD Agency Documentation
+site_description: AI-powered content design agents for UX writers, conversation designers, and product teams
+site_url: https://adedayoagarau.github.io/cd-agency/
+repo_url: https://github.com/adedayoagarau/cd-agency
+repo_name: adedayoagarau/cd-agency
+
+docs_dir: docs/api
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - About: about.md
+      - Installation: installation.md
+      - Quick Start: quickstart.md
+      - Configuration: configuration.md
+  - CLI Reference:
+      - Overview: cli.md
+      - agent: cli-agent.md
+      - score: cli-score.md
+      - workflow: cli-workflow.md
+      - memory: cli-memory.md
+      - context: cli-context.md
+      - export: cli-export.md
+      - presets: cli-presets.md
+      - stats: cli-stats.md
+      - interactive: cli-interactive.md
+  - Runtime API:
+      - Agent: agent.md
+      - Loader: loader.md
+      - Registry: registry.md
+      - Runner: runner.md
+      - Config: config.md
+      - Memory: memory.md
+      - Workflow Engine: workflow.md
+  - Scoring Tools:
+      - Readability: scoring.md
+      - Linter: linter.md
+      - Accessibility: a11y.md
+      - Voice Checker: voice.md
+      - Report: report.md
+      - Export: export.md
+      - Analytics: analytics.md
+  - Content Design:
+      - Built-in Agents: agents.md
+      - Agent Format: agent-format.md
+      - Custom Agents: custom-agents.md
+      - Workflow Format: workflow-format.md
+      - Built-in Workflows: workflows.md
+      - Design Presets: presets.md
+  - Guides:
+      - Scoring Guide: guide-scoring.md
+      - Workflows Guide: guide-workflows.md
+      - CI/CD Integration: guide-ci.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/adedayoagarau/cd-agency
+
+copyright: Copyright &copy; 2024-2026 CD Agency Contributors

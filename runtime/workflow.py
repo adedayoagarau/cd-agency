@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import ast
 import asyncio
+import operator
 import re
 import time
 from dataclasses import dataclass, field
@@ -340,17 +342,106 @@ class WorkflowEngine:
 
         return groups
 
+    # Operators allowed in safe condition evaluation
+    _SAFE_OPS: dict[type, Any] = {
+        ast.Eq: operator.eq,
+        ast.NotEq: operator.ne,
+        ast.Lt: operator.lt,
+        ast.LtE: operator.le,
+        ast.Gt: operator.gt,
+        ast.GtE: operator.ge,
+        ast.Is: operator.is_,
+        ast.IsNot: operator.is_not,
+        ast.In: lambda a, b: a in b,
+        ast.NotIn: lambda a, b: a not in b,
+        ast.And: None,  # handled specially
+        ast.Or: None,   # handled specially
+        ast.Not: operator.not_,
+        ast.Add: operator.add,
+        ast.Sub: operator.sub,
+        ast.Mult: operator.mul,
+    }
+
     def _evaluate_condition(
         self,
         condition: str,
         workflow_input: dict[str, Any],
         step_outputs: dict[str, AgentOutput],
     ) -> bool:
-        """Evaluate a condition string. Returns True if the step should run."""
+        """Evaluate a condition string safely using AST parsing.
+
+        Only allows attribute access, comparisons, boolean logic, and literals.
+        No function calls, imports, or arbitrary code execution.
+        """
         try:
-            return bool(eval(condition, {"__builtins__": {}}, {
+            tree = ast.parse(condition, mode="eval")
+            variables = {
                 "input": workflow_input,
                 "steps": {k: v.content for k, v in step_outputs.items()},
-            }))
+            }
+            return bool(self._safe_eval_node(tree.body, variables))
         except Exception:
             return False
+
+    def _safe_eval_node(self, node: ast.AST, variables: dict[str, Any]) -> Any:
+        """Recursively evaluate an AST node with only safe operations."""
+        if isinstance(node, ast.Constant):
+            return node.value
+
+        if isinstance(node, ast.Name):
+            if node.id in variables:
+                return variables[node.id]
+            if node.id in ("True", "False", "None"):
+                return {"True": True, "False": False, "None": None}[node.id]
+            raise ValueError(f"Unknown variable: {node.id}")
+
+        if isinstance(node, ast.Attribute):
+            value = self._safe_eval_node(node.value, variables)
+            if isinstance(value, dict):
+                return value.get(node.attr)
+            raise ValueError(f"Attribute access not allowed on {type(value)}")
+
+        if isinstance(node, ast.Subscript):
+            value = self._safe_eval_node(node.value, variables)
+            if isinstance(value, dict):
+                key = self._safe_eval_node(node.slice, variables)
+                return value.get(key)
+            raise ValueError(f"Subscript not allowed on {type(value)}")
+
+        if isinstance(node, ast.Compare):
+            left = self._safe_eval_node(node.left, variables)
+            for op, comparator in zip(node.ops, node.comparators):
+                right = self._safe_eval_node(comparator, variables)
+                op_func = self._SAFE_OPS.get(type(op))
+                if op_func is None:
+                    raise ValueError(f"Unsupported operator: {type(op).__name__}")
+                if not op_func(left, right):
+                    return False
+                left = right
+            return True
+
+        if isinstance(node, ast.BoolOp):
+            if isinstance(node.op, ast.And):
+                return all(self._safe_eval_node(v, variables) for v in node.values)
+            if isinstance(node.op, ast.Or):
+                return any(self._safe_eval_node(v, variables) for v in node.values)
+
+        if isinstance(node, ast.UnaryOp):
+            operand = self._safe_eval_node(node.operand, variables)
+            if isinstance(node.op, ast.Not):
+                return not operand
+            raise ValueError(f"Unsupported unary op: {type(node.op).__name__}")
+
+        if isinstance(node, ast.BinOp):
+            left = self._safe_eval_node(node.left, variables)
+            right = self._safe_eval_node(node.right, variables)
+            op_func = self._SAFE_OPS.get(type(node.op))
+            if op_func is None:
+                raise ValueError(f"Unsupported binary op: {type(node.op).__name__}")
+            return op_func(left, right)
+
+        if isinstance(node, ast.IfExp):
+            test = self._safe_eval_node(node.test, variables)
+            return self._safe_eval_node(node.body if test else node.orelse, variables)
+
+        raise ValueError(f"Unsupported expression: {type(node).__name__}")
