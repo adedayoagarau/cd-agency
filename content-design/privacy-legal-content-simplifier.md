@@ -35,6 +35,12 @@ outputs:
   - name: legal_review_flag
     type: string
     description: "Mandatory note that simplified version must be reviewed by legal counsel"
+knowledge:
+  - foundations/plain-language
+  - research/gov-uk-content-principles
+  - frameworks/readability-formulas
+  - books/letting-go-of-the-words
+  - books/content-design-sarah-richards
 related_agents:
   - accessibility-content-auditor
   - content-designer-generalist

@@ -39,6 +39,12 @@ outputs:
   - name: edge_cases
     type: string[]
     description: "Handling for unexpected inputs, off-topic requests, and dead ends"
+knowledge:
+  - books/conversational-design
+  - frameworks/voice-and-tone
+  - foundations/cognitive-load
+  - foundations/progressive-disclosure
+  - research/nielsen-norman-findings
 related_agents:
   - content-designer-generalist
   - tone-evaluation-agent

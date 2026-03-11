@@ -35,6 +35,12 @@ outputs:
   - name: plain_language_rewrites
     type: string[]
     description: "Simplified versions of flagged complex content"
+knowledge:
+  - foundations/plain-language
+  - research/accessibility-research
+  - research/gov-uk-content-principles
+  - frameworks/readability-formulas
+  - books/letting-go-of-the-words
 related_agents:
   - content-designer-generalist
   - tone-evaluation-agent

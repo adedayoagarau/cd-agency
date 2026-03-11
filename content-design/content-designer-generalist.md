@@ -35,6 +35,15 @@ outputs:
   - name: handoff_suggestion
     type: string
     description: "Which specialist agent to use next, if applicable"
+knowledge:
+  - foundations/plain-language
+  - foundations/information-hierarchy
+  - foundations/cognitive-load
+  - frameworks/voice-and-tone
+  - books/writing-is-designing
+  - books/content-design-sarah-richards
+  - books/nicely-said
+  - research/nielsen-norman-findings
 related_agents:
   - microcopy-review-agent
   - tone-evaluation-agent

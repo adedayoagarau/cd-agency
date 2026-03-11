@@ -39,6 +39,13 @@ outputs:
   - name: email_sequence
     type: object
     description: "Welcome email content and follow-up sequence"
+knowledge:
+  - foundations/progressive-disclosure
+  - frameworks/jobs-to-be-done
+  - frameworks/behavior-model
+  - case-studies/duolingo-onboarding
+  - books/dont-make-me-think
+  - research/nielsen-norman-findings
 related_agents:
   - content-designer-generalist
   - cta-optimization-specialist

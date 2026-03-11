@@ -104,6 +104,9 @@ def agent_info(name: str) -> None:
     if a.related_agents:
         console.print(f"\n[bold]Related Agents:[/bold] {', '.join(a.related_agents)}")
 
+    if a.knowledge_refs:
+        console.print(f"\n[bold]Knowledge:[/bold] {', '.join(a.knowledge_refs)}")
+
     console.print(f"\n[bold]Tags:[/bold] {', '.join(a.tags)}")
     console.print(f"[bold]Difficulty:[/bold] {a.difficulty_level}")
     console.print(f"[bold]Source:[/bold] {a.source_file}\n")
@@ -782,6 +785,92 @@ def context_set(key: str, value: str) -> None:
     )
 
     console.print(f"[green]Set {key} = {value}[/green]")
+
+
+# --- Knowledge commands ---
+
+@main.group()
+def knowledge() -> None:
+    """Browse and search the content design knowledge base."""
+    pass
+
+
+@knowledge.command("list")
+@click.option("--domain", "-d", help="Filter by domain (foundations, frameworks, research, case-studies, books, domains)")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def knowledge_list(domain: str | None, as_json: bool) -> None:
+    """List all available knowledge files."""
+    from runtime.knowledge import list_knowledge_files
+
+    files = list_knowledge_files()
+
+    if domain:
+        files = [f for f in files if f["domain"] == domain]
+
+    if as_json:
+        click.echo(json.dumps(files, indent=2))
+        return
+
+    table = Table(title=f"Knowledge Base ({len(files)} files)")
+    table.add_column("Reference", style="cyan")
+    table.add_column("Title", style="white")
+    table.add_column("Domain", style="yellow")
+    table.add_column("Tags", style="dim")
+
+    for f in files:
+        table.add_row(f["ref"], f["title"], f["domain"], ", ".join(f["tags"][:4]))
+
+    console.print(table)
+
+
+@knowledge.command("search")
+@click.argument("query")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def knowledge_search(query: str, as_json: bool) -> None:
+    """Search the knowledge base."""
+    from runtime.knowledge import search_knowledge
+
+    results = search_knowledge(query)
+
+    if not results:
+        console.print(f"[dim]No results for '{query}'.[/dim]")
+        return
+
+    if as_json:
+        click.echo(json.dumps(results, indent=2))
+        return
+
+    table = Table(title=f"Knowledge Search: '{query}' ({len(results)} results)")
+    table.add_column("Reference", style="cyan")
+    table.add_column("Title", style="white")
+    table.add_column("Domain", style="yellow")
+    table.add_column("Score", style="green", justify="right")
+
+    for r in results:
+        table.add_row(r["ref"], r["title"], r["domain"], str(r["score"]))
+
+    console.print(table)
+
+
+@knowledge.command("show")
+@click.argument("ref")
+def knowledge_show(ref: str) -> None:
+    """Show the contents of a knowledge file."""
+    from pathlib import Path
+    from runtime.knowledge import load_knowledge_file, DEFAULT_KNOWLEDGE_DIR
+
+    filepath = DEFAULT_KNOWLEDGE_DIR / f"{ref}.md"
+    if not filepath.exists():
+        console.print(f"[red]Knowledge file not found: '{ref}'[/red]")
+        console.print("Run [cyan]cd-agency knowledge list[/cyan] to see available files.")
+        sys.exit(1)
+
+    data = load_knowledge_file(filepath)
+    console.print(f"\n[bold cyan]{data['title']}[/bold cyan]")
+    console.print(f"[dim]Domain: {data['domain']} | Tags: {', '.join(data['tags'])}[/dim]")
+    if data["sources"]:
+        console.print(f"[dim]Sources: {'; '.join(data['sources'])}[/dim]")
+    console.print(f"\n{data['content']}\n")
 
 
 # --- Stats command ---

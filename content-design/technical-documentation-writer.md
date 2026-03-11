@@ -36,6 +36,12 @@ outputs:
   - name: structure_outline
     type: string
     description: "Content hierarchy and navigation plan"
+knowledge:
+  - foundations/information-hierarchy
+  - foundations/progressive-disclosure
+  - books/letting-go-of-the-words
+  - case-studies/stripe-developer-docs
+  - case-studies/github-developer-content
 related_agents:
   - content-designer-generalist
   - accessibility-content-auditor

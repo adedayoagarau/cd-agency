@@ -39,6 +39,12 @@ outputs:
   - name: ab_test_plan
     type: string
     description: "Which variations to test and what to measure"
+knowledge:
+  - frameworks/behavior-model
+  - frameworks/jobs-to-be-done
+  - books/microcopy-complete-guide
+  - research/nielsen-norman-findings
+  - case-studies/duolingo-onboarding
 related_agents:
   - microcopy-review-agent
   - content-designer-generalist

@@ -39,6 +39,13 @@ outputs:
   - name: character_counts
     type: object
     description: "Character count for original and each suggestion"
+knowledge:
+  - foundations/plain-language
+  - foundations/cognitive-load
+  - frameworks/readability-formulas
+  - books/microcopy-complete-guide
+  - books/dont-make-me-think
+  - research/nielsen-norman-findings
 related_agents:
   - content-designer-generalist
   - cta-optimization-specialist

@@ -39,6 +39,12 @@ outputs:
   - name: grouping_strategy
     type: string
     description: "How to batch similar notifications to reduce fatigue"
+knowledge:
+  - foundations/cognitive-load
+  - frameworks/behavior-model
+  - books/conversational-design
+  - research/nielsen-norman-findings
+  - case-studies/duolingo-onboarding
 related_agents:
   - mobile-ux-writer
   - cta-optimization-specialist

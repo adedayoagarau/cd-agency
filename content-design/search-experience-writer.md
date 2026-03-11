@@ -39,6 +39,12 @@ outputs:
   - name: search_tips
     type: string[]
     description: "User-facing tips for getting better search results"
+knowledge:
+  - foundations/information-hierarchy
+  - foundations/cognitive-load
+  - frameworks/usability-heuristics
+  - books/dont-make-me-think
+  - research/nielsen-norman-findings
 related_agents:
   - empty-state-placeholder-specialist
   - microcopy-review-agent

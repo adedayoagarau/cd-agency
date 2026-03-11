@@ -39,6 +39,12 @@ outputs:
   - name: platform_notes
     type: string
     description: "iOS/Android specific considerations"
+knowledge:
+  - foundations/cognitive-load
+  - foundations/plain-language
+  - books/microcopy-complete-guide
+  - books/dont-make-me-think
+  - research/nielsen-norman-findings
 related_agents:
   - microcopy-review-agent
   - notification-content-designer

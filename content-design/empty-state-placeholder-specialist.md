@@ -36,6 +36,13 @@ outputs:
   - name: illustration_brief
     type: string
     description: "Description of a complementary illustration or icon"
+knowledge:
+  - foundations/cognitive-load
+  - foundations/progressive-disclosure
+  - books/microcopy-complete-guide
+  - case-studies/slack-voice-and-errors
+  - case-studies/github-developer-content
+  - research/nielsen-norman-findings
 related_agents:
   - onboarding-flow-designer
   - cta-optimization-specialist

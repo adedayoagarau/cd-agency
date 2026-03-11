@@ -8,9 +8,10 @@ from pathlib import Path
 import yaml
 
 from runtime.agent import Agent, AgentInput, OutputField
+from runtime.knowledge import resolve_knowledge_refs, DEFAULT_KNOWLEDGE_DIR
 
 
-def load_agent(filepath: Path) -> Agent:
+def load_agent(filepath: Path, knowledge_dir: Path | None = None) -> Agent:
     """Load a single agent from a markdown file.
 
     Parses YAML frontmatter and markdown sections into an Agent object.
@@ -42,6 +43,11 @@ def load_agent(filepath: Path) -> Agent:
             description=out.get("description", ""),
         ))
 
+    # Resolve knowledge references
+    knowledge_refs = frontmatter.get("knowledge", [])
+    kdir = knowledge_dir or DEFAULT_KNOWLEDGE_DIR
+    knowledge_content = resolve_knowledge_refs(knowledge_refs, kdir)
+
     return Agent(
         name=frontmatter.get("name", filepath.stem),
         description=frontmatter.get("description", ""),
@@ -59,6 +65,8 @@ def load_agent(filepath: Path) -> Agent:
         technical_deliverables=sections.get("technical deliverables", ""),
         workflow_process=sections.get("workflow process", ""),
         success_metrics=sections.get("success metrics", ""),
+        knowledge_refs=knowledge_refs,
+        knowledge_content=knowledge_content,
         source_file=str(filepath),
     )
 

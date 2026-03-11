@@ -39,6 +39,13 @@ outputs:
   - name: prevention_tip
     type: string
     description: "Guidance to help prevent this error in the future"
+knowledge:
+  - foundations/plain-language
+  - foundations/cognitive-load
+  - frameworks/usability-heuristics
+  - books/microcopy-complete-guide
+  - research/nielsen-norman-findings
+  - case-studies/slack-voice-and-errors
 related_agents:
   - content-designer-generalist
   - accessibility-content-auditor

@@ -35,6 +35,12 @@ outputs:
   - name: alignment_score
     type: number
     description: "Overall brand voice alignment score (1-10)"
+knowledge:
+  - frameworks/voice-and-tone
+  - books/nicely-said
+  - books/strategic-writing-for-ux
+  - case-studies/mailchimp-voice-and-tone
+  - case-studies/slack-voice-and-errors
 related_agents:
   - content-designer-generalist
   - microcopy-review-agent

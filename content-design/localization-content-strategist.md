@@ -39,6 +39,11 @@ outputs:
   - name: cultural_flags
     type: string[]
     description: "Content that may need cultural adaptation per target locale"
+knowledge:
+  - foundations/plain-language
+  - research/gov-uk-content-principles
+  - research/accessibility-research
+  - books/content-design-sarah-richards
 related_agents:
   - content-designer-generalist
   - accessibility-content-auditor
