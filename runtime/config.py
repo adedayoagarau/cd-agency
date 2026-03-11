@@ -146,6 +146,14 @@ class Config:
                 "CD_AGENCY_TEMPERATURE",
                 file_config.get("temperature", 0.7),
             )),
+            timeout=float(os.environ.get(
+                "CD_AGENCY_TIMEOUT",
+                file_config.get("timeout", 60.0),
+            )),
+            max_retries=int(os.environ.get(
+                "CD_AGENCY_MAX_RETRIES",
+                file_config.get("max_retries", 3),
+            )),
             default_preset=file_config.get("default_preset", ""),
             brand_voice_guide=file_config.get("brand_voice_guide", ""),
             output_format=file_config.get("output_format", "text"),
