@@ -1191,6 +1191,42 @@ def interactive_mode() -> None:
         console.print(f"[red]Missing required fields: {', '.join(missing)}[/red]")
         sys.exit(1)
 
+    # Run preflight analysis — surface clarifying questions
+    from runtime.preflight import run_preflight
+
+    preflight = run_preflight(agent, user_input)
+    if preflight.questions:
+        console.print(f"\n[yellow]I have {len(preflight.questions)} question(s) for better results:[/yellow]")
+        for q in preflight.questions:
+            console.print(f"\n  [bold]{q.question}[/bold]")
+            console.print(f"  [dim]Why: {q.why_it_matters}[/dim]")
+
+            if q.suggested_options:
+                choices = {str(i + 1): opt for i, opt in enumerate(q.suggested_options)}
+                for num, opt in choices.items():
+                    console.print(f"    [cyan]{num}[/cyan]. {opt}")
+                answer = click.prompt(
+                    f"  Pick a number or type your own (Enter to skip)",
+                    default="", show_default=False,
+                )
+                if answer in choices:
+                    user_input[q.field_name] = choices[answer]
+                elif answer:
+                    user_input[q.field_name] = answer
+            else:
+                answer = click.prompt(
+                    f"  Your answer (Enter to skip)",
+                    default="", show_default=False,
+                )
+                if answer:
+                    user_input[q.field_name] = answer
+
+        # Show assumptions for unanswered questions
+        unanswered = [q for q in preflight.questions if q.field_name not in user_input]
+        if unanswered:
+            from runtime.preflight import build_assumption_block
+            console.print(f"\n[dim]Proceeding with defaults for: {', '.join(q.field_name for q in unanswered)}[/dim]")
+
     # Check for API key
     config = Config.from_env()
     errors = config.validate()

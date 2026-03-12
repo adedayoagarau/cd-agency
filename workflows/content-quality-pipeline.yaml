@@ -1,0 +1,51 @@
+name: Content Quality Pipeline
+description: >
+  End-to-end content quality chain. The Generalist rewrites the content,
+  the Consistency Checker audits terminology and patterns, the Tone Evaluator
+  validates voice alignment, and the Accessibility Auditor ensures WCAG compliance.
+  Use this as a full quality gate before shipping content.
+
+steps:
+  - name: content_rewrite
+    agent: generalist
+    input_map:
+      content_or_context: "$input.content"
+      brand_guidelines: "$input.brand_guidelines"
+      target_audience: "$input.target_audience"
+    output_key: rewrite_result
+
+  - name: consistency_audit
+    agent: content-consistency-checker
+    input_map:
+      content: "$steps.rewrite_result.content"
+      existing_terms: "$input.existing_terms"
+      product_area: "$input.product_area"
+      style_guide_notes: "$input.brand_guidelines"
+    output_key: consistency_result
+
+  - name: tone_validation
+    agent: tone
+    input_map:
+      content: "$steps.rewrite_result.content"
+      target_tone: "$input.target_tone"
+      brand_voice_guide: "$input.brand_guidelines"
+      channel: "$input.channel"
+    output_key: tone_result
+    parallel_group: quality_checks
+
+  - name: accessibility_check
+    agent: a11y
+    input_map:
+      content: "$steps.rewrite_result.content"
+      content_type: "$input.content_type"
+      target_audience: "$input.target_audience"
+    output_key: a11y_result
+    parallel_group: quality_checks
+
+  - name: final_polish
+    agent: microcopy
+    input_map:
+      microcopy: "$steps.rewrite_result.content"
+      ui_context: "$input.ui_context"
+      brand_voice: "$input.brand_guidelines"
+    output_key: final_result

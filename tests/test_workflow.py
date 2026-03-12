@@ -96,7 +96,7 @@ class TestLoadWorkflow:
 class TestLoadWorkflowsFromDirectory:
     def test_loads_all_workflows(self):
         workflows = load_workflows_from_directory(WORKFLOWS_DIR)
-        assert len(workflows) == 5  # 5 workflow files (excluding schema.yaml)
+        assert len(workflows) == 6  # 6 workflow files (excluding schema.yaml)
 
     def test_excludes_schema(self):
         workflows = load_workflows_from_directory(WORKFLOWS_DIR)
