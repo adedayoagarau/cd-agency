@@ -64,6 +64,7 @@ nav:
       - agent: cli-agent.md
       - score: cli-score.md
       - workflow: cli-workflow.md
+      - history: cli-history.md
       - memory: cli-memory.md
       - context: cli-context.md
       - export: cli-export.md
@@ -78,6 +79,8 @@ nav:
       - Config: config.md
       - Memory: memory.md
       - Workflow Engine: workflow.md
+      - Auto-Validation: postprocess.md
+      - Content Versioning: versioning.md
   - Scoring Tools:
       - Readability: scoring.md
       - Linter: linter.md

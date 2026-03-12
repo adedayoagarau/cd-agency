@@ -134,6 +134,8 @@ cd-agency agent run NAME [OPTIONS]
 | `--file` | `-f` | path | Read input from file |
 | `--field` | `-F` | key=value | Set a specific input field (repeatable) |
 | `--model` | `-m` | string | Override the default model |
+| `--validate` | `-V` | flag | Auto-validate output against UI constraints |
+| `--platform` | `-p` | string | Target platform for validation (`ios`, `android`, `web`) |
 | `--json-output` | | flag | Output as JSON |
 
 **Examples:**
@@ -159,6 +161,12 @@ cd-agency agent run generalist -f content.txt
 
 # Pipe from stdin
 echo "Submit your information" | cd-agency agent run microcopy
+
+# Auto-validate output against UI constraints
+cd-agency agent run error -i "Payment failed" --validate
+
+# Validate for a specific platform
+cd-agency agent run mobile -i "Saved" --validate --platform ios
 ```
 
 **JSON output structure:**
@@ -225,6 +233,7 @@ Agents can be referenced by slug, full name, or alias:
 | `cta` | cta-optimization-specialist |
 | `onboarding` | onboarding-flow-designer |
 | `docs`, `tech-docs` | technical-documentation-writer |
+| `ia`, `architecture` | information-architect |
 | `mobile` | mobile-ux-writer |
 | `l10n`, `localization`, `i18n` | localization-content-strategist |
 | `notifications`, `notify`, `push` | notification-content-designer |

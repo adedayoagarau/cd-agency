@@ -4,7 +4,7 @@ CD Agency integrates with your existing design and development workflow through 
 
 ## Paper.design (MCP)
 
-CD Agency includes a [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI agents in Paper.design read and interact with all 15 content design agents, scoring tools, and presets directly.
+CD Agency includes a [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI agents in Paper.design read and interact with all content design agents, scoring tools, and presets directly.
 
 ### Setup
 
@@ -44,7 +44,7 @@ claude mcp add cd-agency -- python -m mcp
 
 | Tool | Description |
 |------|-------------|
-| `list_agents` | List all 15 content design agents |
+| `list_agents` | List all content design agents |
 | `get_agent_info` | Get details about a specific agent |
 | `suggest_agent` | Auto-suggest the best agent for given text |
 | `score_readability` | Flesch-Kincaid readability scoring |
@@ -52,6 +52,8 @@ claude mcp add cd-agency -- python -m mcp
 | `check_accessibility` | WCAG text accessibility checker |
 | `score_all` | Run all scorers combined |
 | `compare_text` | Before/after readability comparison |
+| `validate_content` | Validate UI text against character limits, platform conventions, a11y, and localization expansion |
+| `content_history` | Browse content version history — list, search, diff, stats |
 | `list_presets` | List design system presets |
 | `get_preset` | Get preset details |
 
@@ -109,7 +111,7 @@ cd vscode-extension && npm install && npm run compile
 |---------|----------|-------------|
 | `CD Agency: Run Agent on Selection` | `Ctrl+Shift+A` | Run an agent on selected text |
 | `CD Agency: Score Selected Text` | — | Score selection for readability |
-| `CD Agency: List Available Agents` | — | Browse all 15 agents |
+| `CD Agency: List Available Agents` | — | Browse all agents |
 | `CD Agency: Configure` | — | Set API URL and preferences |
 
 ### Auto-Lint

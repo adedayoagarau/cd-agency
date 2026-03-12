@@ -90,6 +90,7 @@ cd-agency score lint [OPTIONS]
 | `--input` | `-i` | string | Text to lint |
 | `--file` | `-f` | path | Read from file |
 | `--type` | `-t` | choice | Content type (see below) |
+| `--prefer-consistency` | | flag | Relax character limits when consistency matters more than brevity |
 | `--json-output` | | flag | Output as JSON |
 
 **Content types:**
@@ -126,6 +127,20 @@ cd-agency score lint -i "Click here to learn more!" --type button
 [FAIL] cta-action-verb: CTA should start with an action verb, found 'click'
        -> Try starting with: claim, discover, explore, invite, learn, log, submit, take...
 [PASS] button-char-limit: Button text is 25 chars (limit: 40)
+```
+
+**Consistency mode:**
+
+When you have a set of parallel strings (e.g., menu items, button groups) where
+consistency matters more than strict brevity, use `--prefer-consistency`. This
+relaxes character limits by 20% and downgrades violations from error to info.
+
+```bash
+cd-agency score lint -i "Complete your purchase securely" --type button --prefer-consistency
+```
+
+```
+[INFO] button-char-limit: Button text is 31 chars (soft limit: 40, consistency allowance: 48)
 ```
 
 ---

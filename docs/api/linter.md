@@ -49,6 +49,7 @@ ContentLinter(
     custom_exclusionary: dict[str, str] | None = None,
     max_button_chars: int = 40,
     max_notification_chars: int = 120,
+    prefer_consistency: bool = False,
 )
 ```
 
@@ -56,6 +57,10 @@ ContentLinter(
 - `custom_exclusionary`: Additional exclusionary terms (term → replacement).
 - `max_button_chars`: Maximum allowed characters for button text.
 - `max_notification_chars`: Maximum allowed characters for notification text.
+- `prefer_consistency`: When `True`, character-limit checks get a 20% headroom
+  buffer and violations are downgraded from *error* to *info*. Use this when
+  keeping parallel strings consistent (e.g., a row of buttons or a set of menu
+  items) is more important than strict brevity.
 
 ### `linter.lint(text, content_type)`
 

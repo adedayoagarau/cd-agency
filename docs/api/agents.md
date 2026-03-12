@@ -1,8 +1,8 @@
-# All 15 Agents
+# All 16 Agents
 
 > Stability: Stable
 
-CD Agency ships with 15 specialized content design agents.
+CD Agency ships with 16 specialized content design agents.
 
 ## Agent Catalog
 
@@ -32,6 +32,7 @@ CD Agency ships with 15 specialized content design agents.
 | Agent | Slug | Description |
 | --- | --- | --- |
 | Conversational AI Designer | `conversational-ai-designer` | Dialogue for chatbots, voice assistants, and conversational interfaces |
+| Information Architect | `information-architect` | Extracts entities, maps relationships, and recommends structural patterns for content systems |
 | Localization Content Strategist | `localization-content-strategist` | Adapts content for global audiences with cultural relevance |
 | Privacy & Legal Content Simplifier | `privacy-legal-content-simplifier` | Translates legal jargon into user-friendly language |
 | Technical Documentation Writer | `technical-documentation-writer` | Clear, accurate technical content for developers |
@@ -144,6 +145,16 @@ CD Agency ships with 15 specialized content design agents.
 - **Aliases:** `privacy`, `legal`
 - **Difficulty:** advanced
 - **Tags:** `privacy`, `legal`, `gdpr`, `consent`, `terms-of-service`, `plain-language`, `compliance`
+
+### Information Architect
+
+- **Slug:** `information-architect`
+- **Aliases:** `ia`, `architecture`
+- **Difficulty:** advanced
+- **Tags:** `information-architecture`, `content-structure`, `entities`, `taxonomy`, `relationships`, `content-systems`
+- **Required Input:** `content_or_context` — The content to analyze (a page, flow, feature description, or set of UI strings)
+- **Optional Inputs:** `scope`, `existing_taxonomy`, `target_audience`, `platform`
+- **Outputs:** `entities`, `relationships`, `content_model`, `naming_recommendations`, `structural_patterns`, `consistency_flags`
 
 ### Technical Documentation Writer
 
