@@ -81,6 +81,10 @@ module:
 
 - [Voice Presets](presets.md)
 
+### Integrations
+
+- [MCP, REST API, Figma, VS Code, GitHub Action](integrations.md)
+
 ### Guides
 
 - [Scoring Your Content](guide-scoring.md)

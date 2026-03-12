@@ -47,6 +47,12 @@ cd-agency/
 │   ├── export.py      Multi-format content export
 │   └── analytics.py   Local usage analytics
 │
+├── api/               REST API (FastAPI)
+│   ├── main.py        FastAPI app with CORS, health check
+│   ├── deps.py        Dependencies: registry, runner, auth
+│   ├── models.py      Pydantic request/response schemas
+│   └── routers/       Endpoint modules (agents, scoring, presets, validate, history)
+│
 ├── mcp/               Model Context Protocol server (stdio)
 │   ├── server.py      JSON-RPC server with 12 tools and 3 resources
 │   └── README.md      MCP integration guide
@@ -54,7 +60,7 @@ cd-agency/
 ├── content-design/    16 agent definitions (.md with YAML frontmatter)
 ├── workflows/         5 workflow pipelines (.yaml)
 ├── presets/           4 design system voice profiles (.yaml)
-└── tests/             466+ unit and integration tests (pytest)
+└── tests/             490+ unit and integration tests (pytest)
 ```
 
 ## Design Principles
