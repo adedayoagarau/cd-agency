@@ -126,6 +126,19 @@ class AgentRunner:
         except Exception:
             pass  # Versioning should never break agent execution
 
+        # Record analytics
+        try:
+            from tools.analytics import Analytics
+            analytics = Analytics.load()
+            analytics.record_agent_run(
+                agent_name=agent.name,
+                input_tokens=output.input_tokens,
+                output_tokens=output.output_tokens,
+                latency_ms=output.latency_ms,
+            )
+        except Exception:
+            pass  # Analytics should never break agent execution
+
         return output
 
     def _run_sync(

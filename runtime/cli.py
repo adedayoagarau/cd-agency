@@ -391,8 +391,9 @@ def workflow_info(name: str) -> None:
 @workflow.command("run")
 @click.argument("name")
 @click.option("--field", "-F", multiple=True, help="Set input field: --field key=value")
+@click.option("--validate", "-V", is_flag=True, help="Auto-validate each step's output against UI constraints")
 @click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
-def workflow_run(name: str, field: tuple[str, ...], as_json: bool) -> None:
+def workflow_run(name: str, field: tuple[str, ...], validate: bool, as_json: bool) -> None:
     """Run a multi-agent workflow pipeline."""
     config = Config.from_env()
     errors = config.validate()
@@ -476,6 +477,59 @@ def workflow_run(name: str, field: tuple[str, ...], as_json: bool) -> None:
 
         tokens = result.total_tokens
         console.print(f"\n[dim]Total: {tokens['input']}→{tokens['output']} tokens | {result.total_latency_ms:.0f}ms[/dim]")
+
+    # Record workflow analytics
+    try:
+        from tools.analytics import Analytics as WfAnalytics
+        wf_analytics = WfAnalytics.load()
+        wf_analytics.record_workflow_run(wf.slug)
+    except Exception:
+        pass
+
+    # Post-run validation for each step
+    if validate:
+        from runtime.postprocess import postprocess_output as pp_output
+
+        has_any = False
+        validation_data: list[dict[str, Any]] = []
+
+        for r in result.step_results:
+            if r.skipped or r.error or not r.output or not r.output.content:
+                continue
+            step_agent = registry.get(r.agent_name) or registry.get(r.step_name)
+            if not step_agent:
+                continue
+            pp = pp_output(r.output, step_agent)
+            if not pp.validations:
+                continue
+
+            has_any = True
+            if as_json:
+                validation_data.append({
+                    "step": r.step_name,
+                    "agent": r.agent_name,
+                    "fragments": len(pp.fragments),
+                    "errors": pp.error_count,
+                    "warnings": pp.warning_count,
+                })
+            else:
+                console.print(f"\n[bold]Validation: {r.step_name}[/bold] ({len(pp.fragments)} fragment(s))")
+                for frag, cr in pp.validations:
+                    if cr.passed and not cr.warnings:
+                        console.print(f"  [green]✓[/green] {frag.element_type}: \"{frag.text[:60]}\"")
+                    else:
+                        status = "[yellow]⚠[/yellow]" if cr.passed else "[red]✗[/red]"
+                        console.print(f"  {status} {frag.element_type}: \"{frag.text[:60]}\"")
+                        for v in cr.violations:
+                            if v.severity == "error":
+                                console.print(f"      [red]{v.message}[/red]")
+                            elif v.severity == "warning":
+                                console.print(f"      [yellow]{v.message}[/yellow]")
+                            else:
+                                console.print(f"      [dim]{v.message}[/dim]")
+
+        if as_json and validation_data:
+            click.echo(json.dumps({"workflow_validation": validation_data}, indent=2))
 
 
 # --- Score commands ---
@@ -1474,6 +1528,29 @@ def interactive_mode() -> None:
 
     console.print(result.content)
     console.print(f"\n[dim]Model: {result.model} | Tokens: {result.input_tokens}→{result.output_tokens} | {result.latency_ms:.0f}ms[/dim]")
+
+    # Offer constraint validation
+    if click.confirm("\nValidate output against UI constraints?", default=False):
+        from runtime.postprocess import postprocess_output
+        pp = postprocess_output(result, agent)
+        if pp.validations:
+            console.print(f"\n[bold]Content Validation[/bold] ({len(pp.fragments)} fragment(s))\n")
+            for frag, cr in pp.validations:
+                if cr.passed and not cr.warnings:
+                    console.print(f"  [green]✓[/green] {frag.element_type}: \"{frag.text[:60]}\"")
+                else:
+                    status = "[yellow]⚠[/yellow]" if cr.passed else "[red]✗[/red]"
+                    console.print(f"  {status} {frag.element_type}: \"{frag.text[:60]}\"")
+                    for v in cr.violations:
+                        if v.severity == "error":
+                            console.print(f"      [red]{v.message}[/red]")
+                        elif v.severity == "warning":
+                            console.print(f"      [yellow]{v.message}[/yellow]")
+                        else:
+                            console.print(f"      [dim]{v.message}[/dim]")
+            console.print(f"\n  [dim]{pp.summary()}[/dim]")
+        else:
+            console.print("[dim]No labeled content fragments found to validate.[/dim]")
 
     # Offer scoring
     if click.confirm("\nScore this output for quality?", default=False):
