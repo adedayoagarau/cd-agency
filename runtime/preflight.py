@@ -265,6 +265,22 @@ AGENT_CONTEXT_RULES: dict[str, list[dict[str, Any]]] = {
             "priority": "medium",
         },
     ],
+    "information-architect": [
+        {
+            "field": "scope",
+            "question": "What scope should the analysis cover?",
+            "why": "A single page has a flat entity set. A full product has hierarchies, cross-references, and edge cases. Scope changes the depth of analysis.",
+            "options": ["Single page", "User flow", "Feature area", "Full product"],
+            "priority": "high",
+        },
+        {
+            "field": "existing_taxonomy",
+            "question": "Is there an existing naming convention or taxonomy?",
+            "why": "If the product already uses established terms, the analysis should work within or evolve that model rather than replace it.",
+            "options": [],
+            "priority": "medium",
+        },
+    ],
 }
 
 

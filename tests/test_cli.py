@@ -22,7 +22,7 @@ class TestAgentList:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
-        assert len(data) == 17
+        assert len(data) == 18
         assert "name" in data[0]
         assert "slug" in data[0]
 

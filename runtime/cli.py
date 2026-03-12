@@ -1427,7 +1427,8 @@ def interactive_mode() -> None:
         "7": ("Writing for mobile", "mobile-ux-writer"),
         "8": ("Designing empty states", "empty-state-placeholder-specialist"),
         "9": ("Writing notifications", "notification-content-designer"),
-        "10": ("General content design help", "content-designer-generalist"),
+        "10": ("Mapping content structure (entities, naming, hierarchy)", "information-architect"),
+        "11": ("General content design help", "content-designer-generalist"),
     }
 
     console.print("[bold]What are you working on?[/bold]")

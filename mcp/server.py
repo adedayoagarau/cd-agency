@@ -79,7 +79,7 @@ def _get_a11y() -> A11yChecker:
 TOOLS = [
     {
         "name": "list_agents",
-        "description": "List all 15 content design agents available in CD Agency. Returns agent names, slugs, descriptions, and tags.",
+        "description": "List all content design agents available in CD Agency. Returns agent names, slugs, descriptions, and tags.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -197,6 +197,55 @@ TOOLS = [
         },
     },
     {
+        "name": "validate_content",
+        "description": "Validate UI text against character limits, platform conventions, accessibility, and localization expansion rules. Specify the element type (button, toast, tooltip, etc.) for accurate limits.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": {
+                    "type": "string",
+                    "description": "The UI text to validate",
+                },
+                "element_type": {
+                    "type": "string",
+                    "description": "UI element type (button, tooltip, toast, push_title, push_body, modal_headline, modal_body, inline_error, placeholder, badge, etc.)",
+                },
+                "platform": {
+                    "type": "string",
+                    "description": "Target platform: 'ios', 'android', or 'web' (optional)",
+                },
+                "target_language": {
+                    "type": "string",
+                    "description": "Target language code for localization expansion check, e.g. 'de', 'fr', 'ja' (optional)",
+                },
+            },
+            "required": ["text", "element_type"],
+        },
+    },
+    {
+        "name": "content_history",
+        "description": "Browse content version history — see before/after for past agent runs. Actions: 'list' (recent versions), 'search' (by text), 'diff' (before/after for a version ID), 'stats' (summary).",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string",
+                    "description": "Action to perform: 'list', 'search', 'diff', 'stats'",
+                    "enum": ["list", "search", "diff", "stats"],
+                },
+                "query": {
+                    "type": "string",
+                    "description": "Search query (for 'search' action) or version ID (for 'diff' action)",
+                },
+                "count": {
+                    "type": "integer",
+                    "description": "Number of recent versions to return (for 'list' action, default 10)",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    {
         "name": "list_presets",
         "description": "List available design system presets (Material Design, Shopify Polaris, Atlassian, Apple HIG).",
         "inputSchema": {
@@ -228,7 +277,7 @@ RESOURCES = [
     {
         "uri": "cd-agency://agents",
         "name": "Content Design Agents",
-        "description": "Complete list of all 15 content design agents with their capabilities",
+        "description": "Complete list of all content design agents with their capabilities",
         "mimeType": "application/json",
     },
     {
@@ -294,6 +343,8 @@ def _suggest_agent_for_text(text: str, context: str = "") -> dict[str, Any]:
         suggestions.append(("localization-content-strategist", "Text may need localization review"))
     if any(w in lower for w in ["docs", "documentation", "api", "guide", "reference", "tutorial"]):
         suggestions.append(("technical-documentation-writer", "Text appears to be technical documentation"))
+    if any(w in lower for w in ["entity", "entities", "taxonomy", "hierarchy", "structure", "contains", "belongs", "relationship", "naming", "convention"]):
+        suggestions.append(("information-architect", "Text involves content structure, entities, or taxonomy"))
     if len(text) < 50:
         suggestions.append(("microcopy-review-agent", "Short text suitable for microcopy review"))
 
@@ -413,6 +464,66 @@ def handle_tool_call(name: str, arguments: dict[str, Any]) -> Any:
         before = _require_arg(arguments, "before")
         after = _require_arg(arguments, "after")
         return _get_scorer().compare(before, after)
+
+    elif name == "validate_content":
+        from runtime.constraints import validate_content as _validate
+        text = _require_arg(arguments, "text")
+        element_type = _require_arg(arguments, "element_type")
+        platform = arguments.get("platform")
+        target_language = arguments.get("target_language")
+        result = _validate(text, element_type, platform=platform, target_language=target_language)
+        return {
+            "passed": result.passed,
+            "text": text,
+            "element_type": element_type,
+            "violations": [
+                {"rule": v.rule, "severity": v.severity, "message": v.message}
+                for v in result.violations
+            ],
+            "error_count": len(result.errors),
+            "warning_count": len(result.warnings),
+        }
+
+    elif name == "content_history":
+        from runtime.versioning import ContentHistory
+        action = _require_arg(arguments, "action")
+        history = ContentHistory.load()
+
+        if action == "list":
+            count = arguments.get("count", 10)
+            versions = history.list_recent(count)
+            return [
+                {
+                    "id": v.id,
+                    "agent": v.agent_name,
+                    "input_preview": v.input_preview,
+                    "output_preview": v.output_preview,
+                    "timestamp": v.timestamp,
+                }
+                for v in versions
+            ]
+        elif action == "search":
+            query = arguments.get("query", "")
+            results = history.search(query)
+            return [
+                {
+                    "id": v.id,
+                    "agent": v.agent_name,
+                    "input_preview": v.input_preview,
+                    "output_preview": v.output_preview,
+                }
+                for v in results[-20:]
+            ]
+        elif action == "diff":
+            version_id = arguments.get("query", "")
+            diff = history.diff(version_id)
+            if not diff:
+                return {"error": f"Version '{version_id}' not found"}
+            return diff
+        elif action == "stats":
+            return history.summary()
+        else:
+            return {"error": f"Unknown action: {action}"}
 
     elif name == "list_presets":
         presets = _load_presets()

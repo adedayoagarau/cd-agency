@@ -20,7 +20,7 @@ class TestToolDefinitions:
             assert tool["inputSchema"]["type"] == "object"
 
     def test_tool_count(self):
-        assert len(TOOLS) == 10
+        assert len(TOOLS) == 12
 
     def test_tool_names_are_unique(self):
         names = [t["name"] for t in TOOLS]
@@ -217,7 +217,7 @@ class TestJsonRpcProtocol:
             "method": "tools/list",
             "params": {},
         })
-        assert len(resp["result"]["tools"]) == 10
+        assert len(resp["result"]["tools"]) == 12
 
     def test_tools_call(self):
         resp = _handle_request({
@@ -265,6 +265,74 @@ class TestJsonRpcProtocol:
             "method": "notifications/initialized",
         })
         assert resp is None
+
+
+class TestValidateContent:
+
+    def test_validate_button_passes(self):
+        result = handle_tool_call("validate_content", {
+            "text": "Save",
+            "element_type": "button",
+        })
+        assert result["passed"] is True
+        assert result["error_count"] == 0
+
+    def test_validate_button_too_long(self):
+        result = handle_tool_call("validate_content", {
+            "text": "Save all your changes and continue to the next step",
+            "element_type": "button",
+        })
+        assert result["passed"] is False
+        assert result["error_count"] >= 1
+
+    def test_validate_with_platform(self):
+        result = handle_tool_call("validate_content", {
+            "text": "save changes",
+            "element_type": "button",
+            "platform": "ios",
+        })
+        assert "violations" in result
+        # iOS should flag lowercase for Title Case
+        assert result["warning_count"] >= 1
+
+    def test_validate_with_localization(self):
+        result = handle_tool_call("validate_content", {
+            "text": "x" * 45,
+            "element_type": "push_title",
+            "target_language": "de",
+        })
+        assert any(v["rule"] == "localization_expansion" for v in result["violations"])
+
+
+class TestContentHistory:
+
+    def test_list_action(self):
+        result = handle_tool_call("content_history", {"action": "list"})
+        assert isinstance(result, list)
+
+    def test_stats_action(self):
+        result = handle_tool_call("content_history", {"action": "stats"})
+        assert "count" in result
+
+    def test_search_action(self):
+        result = handle_tool_call("content_history", {"action": "search", "query": "test"})
+        assert isinstance(result, list)
+
+    def test_diff_not_found(self):
+        result = handle_tool_call("content_history", {"action": "diff", "query": "nonexistent"})
+        assert "error" in result
+
+    def test_unknown_action(self):
+        result = handle_tool_call("content_history", {"action": "invalid"})
+        assert "error" in result
+
+
+class TestSuggestAgentIA:
+
+    def test_suggest_for_taxonomy_text(self):
+        result = handle_tool_call("suggest_agent", {"text": "We need to define the entity hierarchy and naming conventions"})
+        slugs = [r["agent"] for r in result["recommendations"]]
+        assert "information-architect" in slugs
 
 
 class TestUnknownTool:
