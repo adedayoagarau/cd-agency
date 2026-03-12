@@ -588,17 +588,19 @@ def score_readability(
 @click.option("--type", "-t", "content_type", default="general",
               type=click.Choice(["general", "cta", "button", "error", "notification", "microcopy"]),
               help="Content type for type-specific rules")
+@click.option("--prefer-consistency", is_flag=True,
+              help="Relax character limits when consistency matters more than brevity")
 @click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
 def score_lint(
     input_text: str | None, input_file: str | None,
-    content_type: str, as_json: bool,
+    content_type: str, prefer_consistency: bool, as_json: bool,
 ) -> None:
     """Run content lint rules on text."""
     from tools.linter import ContentLinter
     from tools.report import ScoringReport, ReportFormat
 
     text = _get_input_text(input_text, input_file)
-    linter = ContentLinter()
+    linter = ContentLinter(prefer_consistency=prefer_consistency)
     results = linter.lint(text, content_type=content_type)
 
     report = ScoringReport(text=text, lint_results=results)

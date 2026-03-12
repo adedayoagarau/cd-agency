@@ -154,6 +154,45 @@ class TestConsistency:
         assert not consistency_result.passed
 
 
+class TestPreferConsistency:
+    """Tests for the prefer_consistency mode (Lee Baker's feedback)."""
+
+    def test_strict_mode_fails_over_limit(self):
+        linter = ContentLinter(max_button_chars=20)
+        result = linter._check_character_limit("Save all your changes now", 20, "button")
+        assert not result.passed
+        assert result.severity == LintSeverity.ERROR
+
+    def test_consistency_mode_relaxes_limit(self):
+        linter = ContentLinter(max_button_chars=20, prefer_consistency=True)
+        # 24 chars > 20 limit, but within 20% headroom (24 chars)
+        result = linter._check_character_limit("Save all your changes", 20, "button")
+        assert result.passed
+        assert result.severity == LintSeverity.INFO
+        assert "consistency allowance" in result.message
+
+    def test_consistency_mode_still_fails_way_over(self):
+        linter = ContentLinter(max_button_chars=20, prefer_consistency=True)
+        # 50 chars >> 24 char relaxed limit
+        result = linter._check_character_limit("x" * 50, 20, "button")
+        assert not result.passed
+        assert "consistency allowance" in result.message
+
+    def test_consistency_mode_under_limit(self):
+        linter = ContentLinter(prefer_consistency=True)
+        result = linter._check_character_limit("Save", 40, "button")
+        assert result.passed
+        assert result.severity == LintSeverity.INFO
+
+    def test_default_is_strict(self):
+        linter = ContentLinter()
+        assert linter.prefer_consistency is False
+
+    def test_consistency_flag_set(self):
+        linter = ContentLinter(prefer_consistency=True)
+        assert linter.prefer_consistency is True
+
+
 class TestLintResult:
     def test_to_dict(self):
         result = LintResult(

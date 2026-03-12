@@ -94,6 +94,7 @@ class TestRunPreflight:
     def test_all_fields_provided(self, error_agent: Agent):
         user_input = {
             "error_scenario": "Payment failed",
+            "technical_details": "Payment gateway timeout after 30s",
             "severity": "critical",
             "target_audience": "consumer",
             "brand_guidelines": "friendly",

@@ -64,6 +64,13 @@ AGENT_CONTEXT_RULES: dict[str, list[dict[str, Any]]] = {
     ],
     "error-message-architect": [
         {
+            "field": "technical_details",
+            "question": "What actually went wrong technically?",
+            "why": "Without knowing the real error condition, any specific replacement is just a guess. A timeout, a validation failure, and a permission error need completely different messages.",
+            "options": ["Server/API error (5xx, timeout)", "Validation/input error", "Permission/auth error", "Connectivity issue"],
+            "priority": "high",
+        },
+        {
             "field": "severity",
             "question": "How severe is this error?",
             "why": "Critical errors (data at risk, can't proceed) need urgent, direct language. Warnings can be calmer.",
