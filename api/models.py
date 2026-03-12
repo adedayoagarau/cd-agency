@@ -169,3 +169,84 @@ class PresetDetail(BaseModel):
     terminology: dict[str, str] = {}
 
     model_config = {"populate_by_name": True}
+
+
+# ── Validation Models ────────────────────────────────────────────────────────
+
+
+class ValidateRequest(BaseModel):
+    """Request body for content validation."""
+
+    text: str = Field(..., min_length=1, description="Text content to validate")
+    element_type: str = Field(..., description="UI element type (e.g., 'button', 'toast', 'push_body')")
+    platform: str | None = Field(None, description="Target platform: ios, android, web")
+    target_language: str | None = Field(None, description="ISO language code for localization check (e.g., 'de', 'fr')")
+    custom_limit: int | None = Field(None, description="Override the default character limit")
+
+
+class ViolationResponse(BaseModel):
+    """A single constraint violation."""
+
+    rule: str
+    severity: str
+    message: str
+    value: Any = None
+    limit: Any = None
+
+
+class ValidateResponse(BaseModel):
+    """Content validation result."""
+
+    passed: bool
+    error_count: int
+    warning_count: int
+    violations: list[ViolationResponse]
+    summary: str
+
+
+class ElementTypeInfo(BaseModel):
+    """UI element type with its character limit."""
+
+    type: str
+    max_chars: int
+    label: str
+
+
+# ── Content History Models ───────────────────────────────────────────────────
+
+
+class VersionResponse(BaseModel):
+    """A single content version entry."""
+
+    id: str
+    timestamp: float
+    agent_name: str
+    agent_slug: str
+    input_text: str
+    output_text: str
+    input_fields: dict[str, str] = {}
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    latency_ms: float = 0.0
+
+
+class VersionDiffResponse(BaseModel):
+    """Before/after diff for a content version."""
+
+    id: str
+    agent: str
+    timestamp: float
+    before: str
+    after: str
+    before_len: int
+    after_len: int
+    char_delta: int
+
+
+class HistoryStatsResponse(BaseModel):
+    """Aggregate stats for content version history."""
+
+    count: int
+    agents_used: list[str]
+    latest: dict[str, Any] | None = None

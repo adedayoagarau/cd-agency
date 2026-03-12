@@ -22,7 +22,7 @@ class TestAgentList:
         assert result.exit_code == 0
         data = json.loads(result.output)
         assert isinstance(data, list)
-        assert len(data) == 16
+        assert len(data) == 18
         assert "name" in data[0]
         assert "slug" in data[0]
 
@@ -183,11 +183,171 @@ class TestScoreAll:
         assert "# Content Scoring Report" in result.output
 
 
+class TestAgentPreflight:
+    def test_preflight_json(self, runner):
+        result = runner.invoke(main, [
+            "agent", "preflight", "error",
+            "-i", "Payment failed", "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["agent"] == "Error Message Architect"
+        assert data["has_enough_context"] is True
+        assert "context_score" in data
+        assert isinstance(data["questions"], list)
+        assert isinstance(data["assumptions"], list)
+
+    def test_preflight_text(self, runner):
+        result = runner.invoke(main, ["agent", "preflight", "error", "-i", "test"])
+        assert result.exit_code == 0
+        assert "Preflight" in result.output
+        assert "Context completeness" in result.output
+
+    def test_preflight_missing_required(self, runner):
+        result = runner.invoke(main, [
+            "agent", "preflight", "error", "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["has_enough_context"] is False
+        assert "error_scenario" in data["missing_required"]
+
+    def test_preflight_not_found(self, runner):
+        result = runner.invoke(main, ["agent", "preflight", "nonexistent-xyz"])
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower()
+
+    def test_preflight_all_context(self, runner):
+        result = runner.invoke(main, [
+            "agent", "preflight", "error",
+            "-i", "test",
+            "-F", "severity=critical",
+            "-F", "target_audience=developer",
+            "-F", "brand_guidelines=professional",
+            "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["has_enough_context"] is True
+        assert data["context_score"] > 0.5
+
+    def test_preflight_shows_questions(self, runner):
+        result = runner.invoke(main, [
+            "agent", "preflight", "error", "-i", "test", "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert len(data["questions"]) > 0
+        q = data["questions"][0]
+        assert "field" in q
+        assert "question" in q
+        assert "why" in q
+        assert "options" in q
+        assert "priority" in q
+
+
+class TestScoreConstraints:
+    def test_constraints_pass(self, runner):
+        result = runner.invoke(main, [
+            "score", "constraints", "-i", "Save", "-e", "button",
+        ])
+        assert result.exit_code == 0
+        assert "passed" in result.output.lower()
+
+    def test_constraints_fail(self, runner):
+        result = runner.invoke(main, [
+            "score", "constraints",
+            "-i", "This is a very long button text that definitely exceeds the limit",
+            "-e", "button",
+        ])
+        assert result.exit_code == 0
+        assert "ERROR" in result.output
+
+    def test_constraints_json(self, runner):
+        result = runner.invoke(main, [
+            "score", "constraints", "-i", "Save", "-e", "button", "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["passed"] is True
+        assert data["element"] == "button"
+        assert isinstance(data["violations"], list)
+
+    def test_constraints_json_fail(self, runner):
+        long_text = "x" * 50
+        result = runner.invoke(main, [
+            "score", "constraints", "-i", long_text, "-e", "button", "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["passed"] is False
+        assert len(data["violations"]) > 0
+
+    def test_constraints_with_platform(self, runner):
+        result = runner.invoke(main, [
+            "score", "constraints",
+            "-i", "save changes", "-e", "button", "-p", "ios",
+            "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        # iOS expects Title Case, so "save changes" should trigger a warning
+        rules = [v["rule"] for v in data["violations"]]
+        assert "platform_case" in rules
+
+    def test_constraints_with_language(self, runner):
+        result = runner.invoke(main, [
+            "score", "constraints",
+            "-i", "xxxxxxxxxxxxxxxxxxxx", "-e", "button", "-l", "de",
+            "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        rules = [v["rule"] for v in data["violations"]]
+        assert "localization_expansion" in rules
+
+    def test_constraints_custom_limit(self, runner):
+        result = runner.invoke(main, [
+            "score", "constraints",
+            "-i", "Hello world", "-e", "button", "--limit", "5",
+            "--json-output",
+        ])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data["passed"] is False
+
+    def test_constraints_unknown_element(self, runner):
+        result = runner.invoke(main, [
+            "score", "constraints", "-i", "test", "-e", "nonexistent_element",
+        ])
+        assert result.exit_code != 0
+        assert "Unknown element type" in result.output
+
+
+class TestScoreElements:
+    def test_elements_table(self, runner):
+        result = runner.invoke(main, ["score", "elements"])
+        assert result.exit_code == 0
+        assert "Element" in result.output
+        assert "button" in result.output
+
+    def test_elements_json(self, runner):
+        result = runner.invoke(main, ["score", "elements", "--json-output"])
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert isinstance(data, list)
+        assert len(data) > 10
+        e = data[0]
+        assert "type" in e
+        assert "max_chars" in e
+        assert "label" in e
+
+
 class TestVersion:
     def test_version(self, runner):
         result = runner.invoke(main, ["--version"])
         assert result.exit_code == 0
-        assert "0.2.0" in result.output
+        assert "0.4.0" in result.output
 
 
 class TestConfigFile:

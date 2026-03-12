@@ -61,6 +61,11 @@ class Agent:
     workflow_process: str = ""
     success_metrics: str = ""
 
+    # Knowledge references (paths relative to knowledge/ dir, e.g. "foundations/plain-language")
+    knowledge_refs: list[str] = field(default_factory=list)
+    # Resolved knowledge content (populated by loader)
+    knowledge_content: str = ""
+
     # Source
     source_file: str = ""
 
@@ -78,6 +83,9 @@ class Agent:
 
         if self.system_prompt:
             parts.append(self.system_prompt)
+
+        if self.knowledge_content:
+            parts.append(f"## Knowledge Base\n\nApply the following content design knowledge when generating recommendations:\n\n{self.knowledge_content}")
 
         if self.few_shot_examples:
             parts.append(self.few_shot_examples)

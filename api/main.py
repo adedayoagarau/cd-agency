@@ -5,12 +5,12 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routers import agents, presets, scoring
+from api.routers import agents, history, presets, scoring, validate
 
 app = FastAPI(
     title="CD Agency API",
     description="Content Design Agency — REST API for UX writing, content scoring, and design system presets.",
-    version="1.0.0",
+    version="0.4.0",
 )
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
@@ -29,6 +29,8 @@ app.add_middleware(
 app.include_router(agents.router, prefix="/api/v1")
 app.include_router(scoring.router, prefix="/api/v1")
 app.include_router(presets.router, prefix="/api/v1")
+app.include_router(validate.router, prefix="/api/v1")
+app.include_router(history.router, prefix="/api/v1")
 
 
 # ── Health Check ─────────────────────────────────────────────────────────────

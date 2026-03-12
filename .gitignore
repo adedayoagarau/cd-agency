@@ -8,6 +8,7 @@ build/
 .env
 .cd-agency.yaml
 .cd-agency.yml
+.cd-agency/
 cd-agency.yaml
 .pytest_cache/
 *.egg

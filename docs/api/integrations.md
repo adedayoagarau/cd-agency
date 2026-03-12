@@ -4,7 +4,7 @@ CD Agency integrates with your existing design and development workflow through 
 
 ## Paper.design (MCP)
 
-CD Agency includes a [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI agents in Paper.design read and interact with all 15 content design agents, scoring tools, and presets directly.
+CD Agency includes a [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI agents in Paper.design read and interact with all content design agents, scoring tools, and presets directly.
 
 ### Setup
 
@@ -44,7 +44,7 @@ claude mcp add cd-agency -- python -m mcp
 
 | Tool | Description |
 |------|-------------|
-| `list_agents` | List all 15 content design agents |
+| `list_agents` | List all content design agents |
 | `get_agent_info` | Get details about a specific agent |
 | `suggest_agent` | Auto-suggest the best agent for given text |
 | `score_readability` | Flesch-Kincaid readability scoring |
@@ -52,6 +52,8 @@ claude mcp add cd-agency -- python -m mcp
 | `check_accessibility` | WCAG text accessibility checker |
 | `score_all` | Run all scorers combined |
 | `compare_text` | Before/after readability comparison |
+| `validate_content` | Validate UI text against character limits, platform conventions, a11y, and localization expansion |
+| `content_history` | Browse content version history — list, search, diff, stats |
 | `list_presets` | List design system presets |
 | `get_preset` | Get preset details |
 
@@ -109,7 +111,7 @@ cd vscode-extension && npm install && npm run compile
 |---------|----------|-------------|
 | `CD Agency: Run Agent on Selection` | `Ctrl+Shift+A` | Run an agent on selected text |
 | `CD Agency: Score Selected Text` | — | Score selection for readability |
-| `CD Agency: List Available Agents` | — | Browse all 15 agents |
+| `CD Agency: List Available Agents` | — | Browse all agents |
 | `CD Agency: Configure` | — | Set API URL and preferences |
 
 ### Auto-Lint
@@ -136,11 +138,53 @@ All endpoints are under the `/api/v1` prefix. The agent run endpoint requires th
 | `POST` | `/api/v1/score/lint` | Content linter (UX writing rules) |
 | `POST` | `/api/v1/score/a11y` | WCAG accessibility text checker |
 | `POST` | `/api/v1/score/all` | All scores combined (readability + lint + a11y) |
+| `POST` | `/api/v1/validate` | Validate UI text against char limits, platform, a11y, localization |
+| `GET` | `/api/v1/validate/element-types` | List all supported UI element types with default limits |
+| `GET` | `/api/v1/history` | List recent content versions (`?agent=`, `?count=`) |
+| `GET` | `/api/v1/history/stats` | Aggregate content versioning statistics |
+| `GET` | `/api/v1/history/search?q=` | Search content history by input/output text |
+| `GET` | `/api/v1/history/{id}` | Get a specific version with full before/after |
+| `GET` | `/api/v1/history/{id}/diff` | Compact before/after diff for a version |
 | `GET` | `/api/v1/presets` | List design system presets |
 | `GET` | `/api/v1/presets/{name}` | Get preset voice guidelines |
 | `GET` | `/health` | Health check |
 
-Scoring endpoints accept `{"text": "your content here"}`. Authentication is via `X-API-Key` header (optional, controlled by `CD_AGENCY_REQUIRE_AUTH` env var).
+Scoring endpoints accept `{"text": "your content here"}`. The validation endpoint accepts `{"text": "...", "element_type": "button", "platform": "ios", "target_language": "de"}`. Authentication is via `X-API-Key` header (optional, controlled by `CD_AGENCY_REQUIRE_AUTH` env var).
+
+### Example: Validate Content
+
+```bash
+curl -X POST http://localhost:8000/api/v1/validate \
+  -H "Content-Type: application/json" \
+  -d '{"text": "Complete your purchase securely", "element_type": "button", "platform": "ios", "target_language": "de"}'
+```
+
+```json
+{
+  "passed": false,
+  "error_count": 1,
+  "warning_count": 2,
+  "violations": [
+    {"rule": "character_limit", "severity": "error", "message": "Button text exceeds 25 char limit (31 chars)"},
+    {"rule": "localization_expansion", "severity": "warning", "message": "Text will expand to ~41 chars in DE (factor: 1.35x)..."},
+    {"rule": "platform_case", "severity": "warning", "message": "IOS uses Title Case for buttons..."}
+  ],
+  "summary": "Constraint check: 1 error(s), 2 warning(s)"
+}
+```
+
+### Example: Content History
+
+```bash
+# List recent versions
+curl http://localhost:8000/api/v1/history?count=5
+
+# Search history
+curl http://localhost:8000/api/v1/history/search?q=payment
+
+# Get diff
+curl http://localhost:8000/api/v1/history/abc123/diff
+```
 
 ### Run the API
 

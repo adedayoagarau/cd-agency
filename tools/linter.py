@@ -97,7 +97,15 @@ EXCLUSIONARY_TERMS = {
 
 
 class ContentLinter:
-    """Runs content quality lint rules against text."""
+    """Runs content quality lint rules against text.
+
+    When ``prefer_consistency=True``, the linter relaxes character-limit
+    enforcement from *error* to *info* and adds a 20 % headroom buffer.
+    This reflects the principle that sometimes concision should be
+    sacrificed for consistency across a set of related strings (e.g.
+    keeping parallel menu items or button labels at the same length even
+    if one exceeds the ideal limit).
+    """
 
     def __init__(
         self,
@@ -105,11 +113,13 @@ class ContentLinter:
         custom_exclusionary: dict[str, str] | None = None,
         max_button_chars: int = 40,
         max_notification_chars: int = 120,
+        prefer_consistency: bool = False,
     ):
         self.jargon_list = DEFAULT_JARGON + (custom_jargon or [])
         self.exclusionary_terms = {**EXCLUSIONARY_TERMS, **(custom_exclusionary or {})}
         self.max_button_chars = max_button_chars
         self.max_notification_chars = max_notification_chars
+        self.prefer_consistency = prefer_consistency
 
     def lint(self, text: str, content_type: str = "general") -> list[LintResult]:
         """Run all applicable lint rules on text.
@@ -210,19 +220,52 @@ class ContentLinter:
         )
 
     def _check_character_limit(self, text: str, limit: int, element: str) -> LintResult:
-        """Check text length against character limit."""
+        """Check text length against character limit.
+
+        When ``prefer_consistency`` is enabled, the limit gets a 20 %
+        buffer and violations are downgraded from *error* to *info*,
+        reflecting that keeping parallel strings consistent can be
+        more important than strict brevity.
+        """
         char_count = len(text.strip())
-        passed = char_count <= limit
-        return LintResult(
-            rule=f"{element}-char-limit",
-            passed=passed,
-            severity=LintSeverity.ERROR,
-            message=(
+
+        if self.prefer_consistency:
+            # Relaxed mode: 20% headroom, info-level only
+            relaxed_limit = int(limit * 1.2)
+            passed = char_count <= relaxed_limit
+            severity = LintSeverity.INFO
+            if passed:
+                if char_count > limit:
+                    msg = (
+                        f"{element.capitalize()} text is {char_count} chars "
+                        f"(soft limit: {limit}, consistency allowance: {relaxed_limit})"
+                    )
+                else:
+                    msg = f"{element.capitalize()} text is {char_count} chars (limit: {limit})"
+                suggestion = ""
+            else:
+                msg = (
+                    f"{element.capitalize()} text is {char_count} chars, "
+                    f"exceeds even the consistency allowance of {relaxed_limit} chars"
+                )
+                suggestion = f"Shorten to {relaxed_limit} characters or fewer"
+        else:
+            # Strict mode (default)
+            passed = char_count <= limit
+            severity = LintSeverity.ERROR
+            msg = (
                 f"{element.capitalize()} text is {char_count} chars (limit: {limit})"
                 if passed
                 else f"{element.capitalize()} text is {char_count} chars, exceeds {limit} char limit"
-            ),
-            suggestion="" if passed else f"Shorten to {limit} characters or fewer",
+            )
+            suggestion = "" if passed else f"Shorten to {limit} characters or fewer"
+
+        return LintResult(
+            rule=f"{element}-char-limit",
+            passed=passed,
+            severity=severity,
+            message=msg,
+            suggestion=suggestion,
         )
 
     def _check_jargon(self, text: str) -> LintResult:

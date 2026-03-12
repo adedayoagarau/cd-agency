@@ -26,7 +26,7 @@ def _get_registry(agents_dir: str | None = None) -> AgentRegistry:
 
 
 @click.group()
-@click.version_option(version="0.2.0", prog_name="cd-agency")
+@click.version_option(version="0.4.0", prog_name="cd-agency")
 def main() -> None:
     """Content Design Agency — AI-powered content design agents."""
     pass
@@ -104,6 +104,9 @@ def agent_info(name: str) -> None:
     if a.related_agents:
         console.print(f"\n[bold]Related Agents:[/bold] {', '.join(a.related_agents)}")
 
+    if a.knowledge_refs:
+        console.print(f"\n[bold]Knowledge:[/bold] {', '.join(a.knowledge_refs)}")
+
     console.print(f"\n[bold]Tags:[/bold] {', '.join(a.tags)}")
     console.print(f"[bold]Difficulty:[/bold] {a.difficulty_level}")
     console.print(f"[bold]Source:[/bold] {a.source_file}\n")
@@ -127,12 +130,98 @@ def agent_import(source: str) -> None:
     import_agent(source, config.agents_dir)
 
 
+@agent.command("preflight")
+@click.argument("name")
+@click.option("--input", "-i", "input_text", help="Inline text input (maps to first required field)")
+@click.option("--field", "-F", multiple=True, help="Set a specific field: --field name=value")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def agent_preflight(
+    name: str,
+    input_text: str | None,
+    field: tuple[str, ...],
+    as_json: bool,
+) -> None:
+    """Run preflight context analysis — shows what's missing before running an agent."""
+    from runtime.preflight import run_preflight
+
+    registry = _get_registry()
+    a = registry.get(name)
+    if not a:
+        console.print(f"[red]Agent not found: '{name}'[/red]")
+        sys.exit(1)
+
+    # Build input dict
+    user_input: dict[str, Any] = {}
+    for f in field:
+        if "=" in f:
+            key, value = f.split("=", 1)
+            user_input[key.strip()] = value.strip()
+    if input_text and a.inputs:
+        user_input.setdefault(a.inputs[0].name, input_text)
+
+    result = run_preflight(a, user_input)
+
+    if as_json:
+        data = {
+            "agent": a.name,
+            "has_enough_context": result.has_enough_context,
+            "context_score": round(result.context_score, 2),
+            "missing_required": result.missing_required,
+            "missing_recommended": result.missing_recommended,
+            "questions": [
+                {
+                    "field": q.field_name,
+                    "question": q.question,
+                    "why": q.why_it_matters,
+                    "options": q.suggested_options,
+                    "priority": q.priority,
+                }
+                for q in result.questions
+            ],
+            "assumptions": result.assumptions,
+        }
+        click.echo(json.dumps(data, indent=2))
+        return
+
+    console.print(f"\n[bold]Preflight: {a.name}[/bold]")
+    score_pct = int(result.context_score * 100)
+    color = "green" if score_pct >= 80 else "yellow" if score_pct >= 50 else "red"
+    console.print(f"Context completeness: [{color}]{score_pct}%[/{color}]\n")
+
+    if result.missing_required:
+        console.print("[red]Missing required fields:[/red]")
+        for f in result.missing_required:
+            console.print(f"  - {f}")
+        console.print()
+
+    if result.questions:
+        console.print("[yellow]Recommended context (will use defaults if omitted):[/yellow]")
+        for q in result.questions:
+            priority_color = "red" if q.priority == "high" else "yellow" if q.priority == "medium" else "dim"
+            console.print(f"\n  [{priority_color}][{q.priority}][/{priority_color}] {q.question}")
+            console.print(f"  [dim]Why: {q.why_it_matters}[/dim]")
+            if q.suggested_options:
+                console.print(f"  Options: {', '.join(q.suggested_options)}")
+
+    if result.assumptions:
+        console.print(f"\n[dim]Assumptions if you proceed without answering:[/dim]")
+        for assumption in result.assumptions:
+            console.print(f"  - {assumption}")
+
+    if result.has_enough_context and not result.questions:
+        console.print("[green]All context provided. Ready to generate.[/green]")
+
+    console.print()
+
+
 @agent.command("run")
 @click.argument("name")
 @click.option("--input", "-i", "input_text", help="Inline text input (maps to first required field)")
 @click.option("--file", "-f", "input_file", type=click.Path(exists=True), help="Read input from file")
 @click.option("--field", "-F", multiple=True, help="Set a specific field: --field name=value")
 @click.option("--model", "-m", help="Override the model")
+@click.option("--validate", "-V", is_flag=True, help="Auto-validate output against UI constraints")
+@click.option("--platform", "-p", help="Target platform for validation (ios, android, web)")
 @click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
 def agent_run(
     name: str,
@@ -140,6 +229,8 @@ def agent_run(
     input_file: str | None,
     field: tuple[str, ...],
     model: str | None,
+    validate: bool,
+    platform: str | None,
     as_json: bool,
 ) -> None:
     """Run an agent with the given input."""
@@ -176,17 +267,59 @@ def agent_run(
         sys.exit(1)
 
     if as_json:
-        click.echo(json.dumps({
+        output_data: dict[str, Any] = {
             "agent": a.name,
             "model": result.model,
             "content": result.content,
             "input_tokens": result.input_tokens,
             "output_tokens": result.output_tokens,
             "latency_ms": round(result.latency_ms, 1),
-        }, indent=2))
+        }
+        if validate:
+            from runtime.postprocess import postprocess_output
+            pp = postprocess_output(result, a, platform=platform)
+            output_data["validation"] = {
+                "fragments": len(pp.fragments),
+                "errors": pp.error_count,
+                "warnings": pp.warning_count,
+                "details": [
+                    {
+                        "text": frag.text,
+                        "element": frag.element_type,
+                        "passed": cr.passed,
+                        "violations": [
+                            {"rule": v.rule, "severity": v.severity, "message": v.message}
+                            for v in cr.violations
+                        ],
+                    }
+                    for frag, cr in pp.validations
+                ],
+            }
+        click.echo(json.dumps(output_data, indent=2))
     else:
         console.print(f"\n{result.content}")
         console.print(f"\n[dim]Model: {result.model} | Tokens: {result.input_tokens}→{result.output_tokens} | {result.latency_ms:.0f}ms[/dim]")
+
+        if validate:
+            from runtime.postprocess import postprocess_output
+            pp = postprocess_output(result, a, platform=platform)
+            if pp.validations:
+                console.print(f"\n{'─' * 50}")
+                console.print(f"[bold]Content Validation[/bold] ({len(pp.fragments)} fragment(s))\n")
+                for frag, cr in pp.validations:
+                    if cr.passed and not cr.warnings:
+                        console.print(f"  [green]✓[/green] {frag.element_type}: \"{frag.text[:60]}\"")
+                    else:
+                        status = "[yellow]⚠[/yellow]" if cr.passed else "[red]✗[/red]"
+                        console.print(f"  {status} {frag.element_type}: \"{frag.text[:60]}\"")
+                        for v in cr.violations:
+                            if v.severity == "error":
+                                console.print(f"      [red]{v.message}[/red]")
+                            elif v.severity == "warning":
+                                console.print(f"      [yellow]{v.message}[/yellow]")
+                            else:
+                                console.print(f"      [dim]{v.message}[/dim]")
+                console.print(f"\n  [dim]{pp.summary()}[/dim]")
 
 
 # --- Workflow commands ---
@@ -258,8 +391,9 @@ def workflow_info(name: str) -> None:
 @workflow.command("run")
 @click.argument("name")
 @click.option("--field", "-F", multiple=True, help="Set input field: --field key=value")
+@click.option("--validate", "-V", is_flag=True, help="Auto-validate each step's output against UI constraints")
 @click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
-def workflow_run(name: str, field: tuple[str, ...], as_json: bool) -> None:
+def workflow_run(name: str, field: tuple[str, ...], validate: bool, as_json: bool) -> None:
     """Run a multi-agent workflow pipeline."""
     config = Config.from_env()
     errors = config.validate()
@@ -344,6 +478,59 @@ def workflow_run(name: str, field: tuple[str, ...], as_json: bool) -> None:
         tokens = result.total_tokens
         console.print(f"\n[dim]Total: {tokens['input']}→{tokens['output']} tokens | {result.total_latency_ms:.0f}ms[/dim]")
 
+    # Record workflow analytics
+    try:
+        from tools.analytics import Analytics as WfAnalytics
+        wf_analytics = WfAnalytics.load()
+        wf_analytics.record_workflow_run(wf.slug)
+    except Exception:
+        pass
+
+    # Post-run validation for each step
+    if validate:
+        from runtime.postprocess import postprocess_output as pp_output
+
+        has_any = False
+        validation_data: list[dict[str, Any]] = []
+
+        for r in result.step_results:
+            if r.skipped or r.error or not r.output or not r.output.content:
+                continue
+            step_agent = registry.get(r.agent_name) or registry.get(r.step_name)
+            if not step_agent:
+                continue
+            pp = pp_output(r.output, step_agent)
+            if not pp.validations:
+                continue
+
+            has_any = True
+            if as_json:
+                validation_data.append({
+                    "step": r.step_name,
+                    "agent": r.agent_name,
+                    "fragments": len(pp.fragments),
+                    "errors": pp.error_count,
+                    "warnings": pp.warning_count,
+                })
+            else:
+                console.print(f"\n[bold]Validation: {r.step_name}[/bold] ({len(pp.fragments)} fragment(s))")
+                for frag, cr in pp.validations:
+                    if cr.passed and not cr.warnings:
+                        console.print(f"  [green]✓[/green] {frag.element_type}: \"{frag.text[:60]}\"")
+                    else:
+                        status = "[yellow]⚠[/yellow]" if cr.passed else "[red]✗[/red]"
+                        console.print(f"  {status} {frag.element_type}: \"{frag.text[:60]}\"")
+                        for v in cr.violations:
+                            if v.severity == "error":
+                                console.print(f"      [red]{v.message}[/red]")
+                            elif v.severity == "warning":
+                                console.print(f"      [yellow]{v.message}[/yellow]")
+                            else:
+                                console.print(f"      [dim]{v.message}[/dim]")
+
+        if as_json and validation_data:
+            click.echo(json.dumps({"workflow_validation": validation_data}, indent=2))
+
 
 # --- Score commands ---
 
@@ -401,17 +588,19 @@ def score_readability(
 @click.option("--type", "-t", "content_type", default="general",
               type=click.Choice(["general", "cta", "button", "error", "notification", "microcopy"]),
               help="Content type for type-specific rules")
+@click.option("--prefer-consistency", is_flag=True,
+              help="Relax character limits when consistency matters more than brevity")
 @click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
 def score_lint(
     input_text: str | None, input_file: str | None,
-    content_type: str, as_json: bool,
+    content_type: str, prefer_consistency: bool, as_json: bool,
 ) -> None:
     """Run content lint rules on text."""
     from tools.linter import ContentLinter
     from tools.report import ScoringReport, ReportFormat
 
     text = _get_input_text(input_text, input_file)
-    linter = ContentLinter()
+    linter = ContentLinter(prefer_consistency=prefer_consistency)
     results = linter.lint(text, content_type=content_type)
 
     report = ScoringReport(text=text, lint_results=results)
@@ -472,6 +661,99 @@ def score_voice(
     report = ScoringReport(text=text, voice_result=result)
     fmt = ReportFormat.JSON if as_json else ReportFormat.TEXT
     click.echo(report.render(fmt))
+
+
+@score.command("constraints")
+@click.option("--input", "-i", "input_text", help="Text to validate")
+@click.option("--file", "-f", "input_file", type=click.Path(exists=True), help="Read from file")
+@click.option("--element", "-e", required=True,
+              help="UI element type (button, tooltip, toast, push_title, push_body, etc.)")
+@click.option("--platform", "-p", help="Target platform (ios, android, web)")
+@click.option("--language", "-l", "target_language", help="Translation target language (de, fr, es, ja, etc.)")
+@click.option("--limit", type=int, help="Custom character limit override")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def score_constraints(
+    input_text: str | None, input_file: str | None,
+    element: str, platform: str | None,
+    target_language: str | None, limit: int | None,
+    as_json: bool,
+) -> None:
+    """Validate content against UI element constraints (char limits, platform, a11y)."""
+    from runtime.constraints import validate_content, ELEMENT_CHAR_LIMITS
+
+    text = _get_input_text(input_text, input_file)
+
+    if element not in ELEMENT_CHAR_LIMITS:
+        known = ", ".join(sorted(ELEMENT_CHAR_LIMITS.keys()))
+        console.print(f"[red]Unknown element type: '{element}'[/red]")
+        console.print(f"[dim]Known types: {known}[/dim]")
+        sys.exit(1)
+
+    result = validate_content(
+        text, element,
+        platform=platform,
+        target_language=target_language,
+        custom_limit=limit,
+    )
+
+    if as_json:
+        data = {
+            "text": text,
+            "element": element,
+            "passed": result.passed,
+            "violations": [
+                {
+                    "rule": v.rule,
+                    "severity": v.severity,
+                    "message": v.message,
+                    "value": v.value,
+                    "limit": v.limit,
+                }
+                for v in result.violations
+            ],
+        }
+        click.echo(json.dumps(data, indent=2))
+        return
+
+    if result.passed and not result.violations:
+        console.print(f"[green]All constraints passed.[/green]")
+        console.print(f"[dim]Text: \"{text}\" | Element: {element} | {len(text)} chars[/dim]")
+    else:
+        console.print(f"[bold]Constraint Check: {element}[/bold]")
+        console.print(f"[dim]Text ({len(text)} chars): \"{text}\"[/dim]\n")
+
+        for v in result.violations:
+            if v.severity == "error":
+                console.print(f"  [red]ERROR:[/red] {v.message}")
+            elif v.severity == "warning":
+                console.print(f"  [yellow]WARN:[/yellow] {v.message}")
+            else:
+                console.print(f"  [dim]INFO:[/dim] {v.message}")
+
+        console.print(f"\n  {result.summary()}")
+
+
+@score.command("elements")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def score_elements(as_json: bool) -> None:
+    """List all known UI element types and their character limits."""
+    from runtime.constraints import list_element_types
+
+    elements = list_element_types()
+
+    if as_json:
+        click.echo(json.dumps(elements, indent=2))
+        return
+
+    table = Table(title="UI Element Character Limits")
+    table.add_column("Element Type", style="cyan")
+    table.add_column("Max Chars", style="yellow", justify="right")
+    table.add_column("Description", style="white")
+
+    for e in elements:
+        table.add_row(e["type"], str(e["max_chars"]), e["label"])
+
+    console.print(table)
 
 
 @score.command("all")
@@ -651,6 +933,187 @@ def memory_export(fmt: str) -> None:
         click.echo(output.getvalue())
 
 
+# --- History (versioning) commands ---
+
+@main.group()
+def history() -> None:
+    """Browse content version history (before/after for every agent run)."""
+    pass
+
+
+@history.command("list")
+@click.option("--agent", "-a", help="Filter by agent slug")
+@click.option("--count", "-n", default=20, help="Number of recent versions to show")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def history_list(agent: str | None, count: int, as_json: bool) -> None:
+    """List recent content versions."""
+    from runtime.versioning import ContentHistory
+
+    hist = ContentHistory.load()
+
+    if agent:
+        versions = hist.list_by_agent(agent)[-count:]
+        versions = list(reversed(versions))
+    else:
+        versions = hist.list_recent(count)
+
+    if as_json:
+        click.echo(json.dumps([v.to_dict() for v in versions], indent=2))
+        return
+
+    if not versions:
+        console.print("[dim]No content versions yet. Run an agent to start tracking.[/dim]")
+        return
+
+    table = Table(title=f"Content History ({len(versions)} of {hist.count})")
+    table.add_column("ID", style="cyan", max_width=12)
+    table.add_column("Agent", style="green")
+    table.add_column("Input", style="white", max_width=40)
+    table.add_column("Output", style="white", max_width=40)
+    table.add_column("Tokens", style="dim", justify="right")
+
+    for v in versions:
+        table.add_row(
+            v.id,
+            v.agent_slug,
+            v.input_preview,
+            v.output_preview,
+            f"{v.input_tokens}→{v.output_tokens}",
+        )
+
+    console.print(table)
+
+
+@history.command("show")
+@click.argument("version_id")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def history_show(version_id: str, as_json: bool) -> None:
+    """Show a specific content version with full before/after."""
+    from runtime.versioning import ContentHistory
+
+    hist = ContentHistory.load()
+    v = hist.get(version_id)
+
+    if not v:
+        console.print(f"[red]Version not found: '{version_id}'[/red]")
+        console.print("Run [cyan]cd-agency history list[/cyan] to see available versions.")
+        sys.exit(1)
+
+    if as_json:
+        click.echo(json.dumps(v.to_dict(), indent=2))
+        return
+
+    import datetime
+    ts = datetime.datetime.fromtimestamp(v.timestamp).strftime("%Y-%m-%d %H:%M:%S")
+
+    console.print(f"\n[bold]Version {v.id}[/bold] — {ts}")
+    console.print(f"[dim]Agent: {v.agent_name} | Model: {v.model}[/dim]")
+    console.print(f"[dim]Tokens: {v.input_tokens}→{v.output_tokens} | {v.latency_ms:.0f}ms[/dim]\n")
+
+    if v.input_fields:
+        console.print("[bold]Input Fields:[/bold]")
+        for k, val in v.input_fields.items():
+            console.print(f"  [cyan]{k}:[/cyan] {val[:100]}")
+        console.print()
+
+    console.print("[bold]Before (Input):[/bold]")
+    console.print(f"  {v.input_text}\n")
+    console.print("[bold]After (Output):[/bold]")
+    console.print(f"  {v.output_text}\n")
+
+
+@history.command("diff")
+@click.argument("version_id")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def history_diff(version_id: str, as_json: bool) -> None:
+    """Show a compact before/after diff for a version."""
+    from runtime.versioning import ContentHistory
+
+    hist = ContentHistory.load()
+    d = hist.diff(version_id)
+
+    if not d:
+        console.print(f"[red]Version not found: '{version_id}'[/red]")
+        sys.exit(1)
+
+    if as_json:
+        click.echo(json.dumps(d, indent=2))
+        return
+
+    console.print(f"\n[bold]Diff: {d['id']}[/bold] ({d['agent']})")
+    console.print(f"[red]- {d['before'][:200]}[/red]")
+    console.print(f"[green]+ {d['after'][:200]}[/green]")
+    delta = d["char_delta"]
+    direction = "shorter" if delta < 0 else "longer" if delta > 0 else "same length"
+    console.print(f"\n[dim]{d['before_len']} → {d['after_len']} chars ({direction}: {delta:+d})[/dim]\n")
+
+
+@history.command("search")
+@click.argument("query")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def history_search(query: str, as_json: bool) -> None:
+    """Search content history by input or output text."""
+    from runtime.versioning import ContentHistory
+
+    hist = ContentHistory.load()
+    results = hist.search(query)
+
+    if as_json:
+        click.echo(json.dumps([v.to_dict() for v in results], indent=2))
+        return
+
+    if not results:
+        console.print(f"[dim]No versions matching '{query}'.[/dim]")
+        return
+
+    table = Table(title=f"Search: '{query}' ({len(results)} results)")
+    table.add_column("ID", style="cyan", max_width=12)
+    table.add_column("Agent", style="green")
+    table.add_column("Input", style="white", max_width=40)
+    table.add_column("Output", style="white", max_width=40)
+
+    for v in results[-20:]:
+        table.add_row(v.id, v.agent_slug, v.input_preview, v.output_preview)
+
+    console.print(table)
+
+
+@history.command("clear")
+@click.confirmation_option(prompt="Clear all content version history?")
+def history_clear() -> None:
+    """Clear all content version history."""
+    from runtime.versioning import ContentHistory
+
+    hist = ContentHistory.load()
+    count = hist.clear()
+    console.print(f"[yellow]Cleared {count} content versions.[/yellow]")
+
+
+@history.command("stats")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def history_stats(as_json: bool) -> None:
+    """Show content versioning stats."""
+    from runtime.versioning import ContentHistory
+
+    hist = ContentHistory.load()
+    summary = hist.summary()
+
+    if as_json:
+        click.echo(json.dumps(summary, indent=2))
+        return
+
+    if summary["count"] == 0:
+        console.print("[dim]No content versions yet.[/dim]")
+        return
+
+    console.print(f"\n[bold]Content Version Stats[/bold]")
+    console.print(f"  Total versions: [cyan]{summary['count']}[/cyan]")
+    console.print(f"  Agents used: [cyan]{', '.join(summary['agents_used'])}[/cyan]")
+    if summary["latest"]:
+        console.print(f"  Latest: [dim]{summary['latest']['agent']} — {summary['latest']['preview']}[/dim]")
+    console.print()
+
+
 # --- Context commands ---
 
 @main.group()
@@ -784,6 +1247,92 @@ def context_set(key: str, value: str) -> None:
     console.print(f"[green]Set {key} = {value}[/green]")
 
 
+# --- Knowledge commands ---
+
+@main.group()
+def knowledge() -> None:
+    """Browse and search the content design knowledge base."""
+    pass
+
+
+@knowledge.command("list")
+@click.option("--domain", "-d", help="Filter by domain (foundations, frameworks, research, case-studies, books, domains)")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def knowledge_list(domain: str | None, as_json: bool) -> None:
+    """List all available knowledge files."""
+    from runtime.knowledge import list_knowledge_files
+
+    files = list_knowledge_files()
+
+    if domain:
+        files = [f for f in files if f["domain"] == domain]
+
+    if as_json:
+        click.echo(json.dumps(files, indent=2))
+        return
+
+    table = Table(title=f"Knowledge Base ({len(files)} files)")
+    table.add_column("Reference", style="cyan")
+    table.add_column("Title", style="white")
+    table.add_column("Domain", style="yellow")
+    table.add_column("Tags", style="dim")
+
+    for f in files:
+        table.add_row(f["ref"], f["title"], f["domain"], ", ".join(f["tags"][:4]))
+
+    console.print(table)
+
+
+@knowledge.command("search")
+@click.argument("query")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def knowledge_search(query: str, as_json: bool) -> None:
+    """Search the knowledge base."""
+    from runtime.knowledge import search_knowledge
+
+    results = search_knowledge(query)
+
+    if not results:
+        console.print(f"[dim]No results for '{query}'.[/dim]")
+        return
+
+    if as_json:
+        click.echo(json.dumps(results, indent=2))
+        return
+
+    table = Table(title=f"Knowledge Search: '{query}' ({len(results)} results)")
+    table.add_column("Reference", style="cyan")
+    table.add_column("Title", style="white")
+    table.add_column("Domain", style="yellow")
+    table.add_column("Score", style="green", justify="right")
+
+    for r in results:
+        table.add_row(r["ref"], r["title"], r["domain"], str(r["score"]))
+
+    console.print(table)
+
+
+@knowledge.command("show")
+@click.argument("ref")
+def knowledge_show(ref: str) -> None:
+    """Show the contents of a knowledge file."""
+    from pathlib import Path
+    from runtime.knowledge import load_knowledge_file, DEFAULT_KNOWLEDGE_DIR
+
+    filepath = DEFAULT_KNOWLEDGE_DIR / f"{ref}.md"
+    if not filepath.exists():
+        console.print(f"[red]Knowledge file not found: '{ref}'[/red]")
+        console.print("Run [cyan]cd-agency knowledge list[/cyan] to see available files.")
+        sys.exit(1)
+
+    data = load_knowledge_file(filepath)
+    console.print(f"\n[bold cyan]{data['title']}[/bold cyan]")
+    console.print(f"[dim]Domain: {data['domain']} | Tags: {', '.join(data['tags'])}[/dim]")
+    if data["sources"]:
+        console.print(f"[dim]Sources: {'; '.join(data['sources'])}[/dim]")
+    console.print(f"\n{data['content']}\n")
+
+
 # --- Stats command ---
 
 @main.command("stats")
@@ -880,7 +1429,8 @@ def interactive_mode() -> None:
         "7": ("Writing for mobile", "mobile-ux-writer"),
         "8": ("Designing empty states", "empty-state-placeholder-specialist"),
         "9": ("Writing notifications", "notification-content-designer"),
-        "10": ("General content design help", "content-designer-generalist"),
+        "10": ("Mapping content structure (entities, naming, hierarchy)", "information-architect"),
+        "11": ("General content design help", "content-designer-generalist"),
     }
 
     console.print("[bold]What are you working on?[/bold]")
@@ -925,6 +1475,42 @@ def interactive_mode() -> None:
         console.print(f"[red]Missing required fields: {', '.join(missing)}[/red]")
         sys.exit(1)
 
+    # Run preflight analysis — surface clarifying questions
+    from runtime.preflight import run_preflight
+
+    preflight = run_preflight(agent, user_input)
+    if preflight.questions:
+        console.print(f"\n[yellow]I have {len(preflight.questions)} question(s) for better results:[/yellow]")
+        for q in preflight.questions:
+            console.print(f"\n  [bold]{q.question}[/bold]")
+            console.print(f"  [dim]Why: {q.why_it_matters}[/dim]")
+
+            if q.suggested_options:
+                choices = {str(i + 1): opt for i, opt in enumerate(q.suggested_options)}
+                for num, opt in choices.items():
+                    console.print(f"    [cyan]{num}[/cyan]. {opt}")
+                answer = click.prompt(
+                    f"  Pick a number or type your own (Enter to skip)",
+                    default="", show_default=False,
+                )
+                if answer in choices:
+                    user_input[q.field_name] = choices[answer]
+                elif answer:
+                    user_input[q.field_name] = answer
+            else:
+                answer = click.prompt(
+                    f"  Your answer (Enter to skip)",
+                    default="", show_default=False,
+                )
+                if answer:
+                    user_input[q.field_name] = answer
+
+        # Show assumptions for unanswered questions
+        unanswered = [q for q in preflight.questions if q.field_name not in user_input]
+        if unanswered:
+            from runtime.preflight import build_assumption_block
+            console.print(f"\n[dim]Proceeding with defaults for: {', '.join(q.field_name for q in unanswered)}[/dim]")
+
     # Check for API key
     config = Config.from_env()
     errors = config.validate()
@@ -945,6 +1531,29 @@ def interactive_mode() -> None:
 
     console.print(result.content)
     console.print(f"\n[dim]Model: {result.model} | Tokens: {result.input_tokens}→{result.output_tokens} | {result.latency_ms:.0f}ms[/dim]")
+
+    # Offer constraint validation
+    if click.confirm("\nValidate output against UI constraints?", default=False):
+        from runtime.postprocess import postprocess_output
+        pp = postprocess_output(result, agent)
+        if pp.validations:
+            console.print(f"\n[bold]Content Validation[/bold] ({len(pp.fragments)} fragment(s))\n")
+            for frag, cr in pp.validations:
+                if cr.passed and not cr.warnings:
+                    console.print(f"  [green]✓[/green] {frag.element_type}: \"{frag.text[:60]}\"")
+                else:
+                    status = "[yellow]⚠[/yellow]" if cr.passed else "[red]✗[/red]"
+                    console.print(f"  {status} {frag.element_type}: \"{frag.text[:60]}\"")
+                    for v in cr.violations:
+                        if v.severity == "error":
+                            console.print(f"      [red]{v.message}[/red]")
+                        elif v.severity == "warning":
+                            console.print(f"      [yellow]{v.message}[/yellow]")
+                        else:
+                            console.print(f"      [dim]{v.message}[/dim]")
+            console.print(f"\n  [dim]{pp.summary()}[/dim]")
+        else:
+            console.print("[dim]No labeled content fragments found to validate.[/dim]")
 
     # Offer scoring
     if click.confirm("\nScore this output for quality?", default=False):

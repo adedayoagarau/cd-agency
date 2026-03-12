@@ -65,12 +65,26 @@ class AgentRunner:
             context_block = self.config.product_context.build_context_block()
             system_message = f"{system_message}\n\n---\n\n{context_block}"
 
+        # Inject design system constraints if configured
+        from runtime.design_system import load_design_system_from_config
+        design_system = load_design_system_from_config()
+        if design_system:
+            ds_block = design_system.build_context_block()
+            system_message = f"{system_message}\n\n---\n\n{ds_block}"
+
         # Inject project memory if available
         from runtime.memory import ProjectMemory
         memory = ProjectMemory.load()
         memory_context = memory.get_context_for_agent(agent.name)
         if memory_context:
             system_message = f"{system_message}\n\n---\n\n{memory_context}"
+
+        # Run preflight analysis and inject assumptions for missing context
+        from runtime.preflight import run_preflight, build_assumption_block
+        preflight = run_preflight(agent, user_input)
+        assumption_block = build_assumption_block(preflight)
+        if assumption_block:
+            system_message = f"{system_message}\n\n---\n\n{assumption_block}"
 
         user_message = agent.build_user_message(user_input)
 
@@ -80,15 +94,52 @@ class AgentRunner:
         resolved_temperature = temperature if temperature is not None else self.config.temperature
 
         if stream:
-            return self._run_streaming(
+            output = self._run_streaming(
+                agent, system_message, user_message,
+                resolved_model, resolved_max_tokens, resolved_temperature,
+            )
+        else:
+            output = self._run_sync(
                 agent, system_message, user_message,
                 resolved_model, resolved_max_tokens, resolved_temperature,
             )
 
-        return self._run_sync(
-            agent, system_message, user_message,
-            resolved_model, resolved_max_tokens, resolved_temperature,
-        )
+        # Record content version for history tracking
+        try:
+            from runtime.versioning import ContentHistory
+            history = ContentHistory.load()
+            # Extract primary input text for the "before"
+            primary_input = ""
+            if agent.inputs:
+                primary_input = str(user_input.get(agent.inputs[0].name, ""))
+            history.record(
+                agent_name=agent.name,
+                agent_slug=agent.slug,
+                input_text=primary_input,
+                output_text=output.content,
+                input_fields={k: str(v) for k, v in user_input.items()},
+                model=output.model,
+                input_tokens=output.input_tokens,
+                output_tokens=output.output_tokens,
+                latency_ms=output.latency_ms,
+            )
+        except Exception:
+            pass  # Versioning should never break agent execution
+
+        # Record analytics
+        try:
+            from tools.analytics import Analytics
+            analytics = Analytics.load()
+            analytics.record_agent_run(
+                agent_name=agent.name,
+                input_tokens=output.input_tokens,
+                output_tokens=output.output_tokens,
+                latency_ms=output.latency_ms,
+            )
+        except Exception:
+            pass  # Analytics should never break agent execution
+
+        return output
 
     def _run_sync(
         self,

@@ -1,13 +1,13 @@
-# CD Agency v0.1.1 Documentation
+# CD Agency v0.4.0 Documentation
 
 > AI-powered content design agents for UX writers, conversation designers, and product teams.
 
 ## About This Documentation
 
 This is the complete API and usage reference for **CD Agency**, a Python toolkit
-containing 15 specialized AI agents for UX writing, content design, and copy
-optimization. It includes a CLI, scoring tools, multi-agent workflows, and
-design system presets.
+containing 16 specialized AI agents for UX writing, content design, and copy
+optimization. It includes a CLI, scoring tools, auto-validation, content
+versioning, multi-agent workflows, and design system presets.
 
 **Stability Index:**
 
@@ -36,6 +36,7 @@ module:
 - [`agent` Commands](cli-agent.md)
 - [`score` Commands](cli-score.md)
 - [`workflow` Commands](cli-workflow.md)
+- [`history` Commands](cli-history.md)
 - [`memory` Commands](cli-memory.md)
 - [`context` Commands](cli-context.md)
 - [`export` Command](cli-export.md)
@@ -52,6 +53,8 @@ module:
 - [`runtime.config` — Configuration](config.md)
 - [`runtime.memory` — Project Memory](memory.md)
 - [`runtime.workflow` — Workflow Engine](workflow.md)
+- [`runtime.postprocess` — Auto-Validation](postprocess.md)
+- [`runtime.versioning` — Content Versioning](versioning.md)
 
 ### Scoring Tools
 
@@ -66,7 +69,7 @@ module:
 ### Agents
 
 - [Agent Format Specification](agent-format.md)
-- [All 15 Agents](agents.md)
+- [All 16 Agents](agents.md)
 - [Creating Custom Agents](custom-agents.md)
 
 ### Workflows
@@ -77,6 +80,10 @@ module:
 ### Design System Presets
 
 - [Voice Presets](presets.md)
+
+### Integrations
+
+- [MCP, REST API, Figma, VS Code, GitHub Action](integrations.md)
 
 ### Guides
 
