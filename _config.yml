@@ -1,0 +1,25 @@
+# Jekyll configuration — only needed to prevent build errors from
+# knowledge base files that contain Liquid-like syntax ({{name}}, {count}).
+# Actual docs are built with MkDocs (see .github/workflows/docs.yml).
+
+exclude:
+  - knowledge
+  - content-design
+  - runtime
+  - tools
+  - api
+  - mcp
+  - tests
+  - workflows
+  - presets
+  - examples
+  - figma-plugin
+  - vscode-extension
+  - node_modules
+  - dist
+  - site
+  - "*.py"
+  - Dockerfile
+  - Makefile
+  - pyproject.toml
+  - mkdocs.yml
