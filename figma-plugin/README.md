@@ -131,7 +131,7 @@ figma-plugin/
 ### Agent Picker (main screen)
 - Shows detected text from the selected layer with layer context
 - Quick-action pills with auto-suggested agents based on text content
-- Full agent dropdown (all 15 agents)
+- Full agent dropdown (all 17 agents)
 - Design system preset selector
 - Collapsible additional context fields (audience, UI context, tone)
 - Auto-score toggle

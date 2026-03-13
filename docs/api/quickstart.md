@@ -140,6 +140,6 @@ print(f"Passed: {a11y.passed} | Issues: {a11y.issue_count}")
 
 - [CLI Reference](cli.md) — All commands and options
 - [Python API](agent.md) — Use the SDK programmatically
-- [Agents](agents.md) — Browse all 15 agents
+- [Agents](agents.md) — Browse all 17 agents
 - [Workflows](workflows.md) — Multi-agent pipelines
 - [Configuration](configuration.md) — Customize behavior

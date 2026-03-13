@@ -2,7 +2,7 @@
 
 > Stability: Stable
 
-CD Agency is a **Content Design Agency** — a collection of 16 specialized AI
+CD Agency is a **Content Design Agency** — a collection of 17 specialized AI
 agents for UX writing, content design, and copy optimization. It ships as a
 Python package with a CLI, local scoring tools, multi-agent workflow pipelines,
 and design system voice presets.
@@ -11,7 +11,7 @@ and design system voice presets.
 
 | Capability | Description |
 | --- | --- |
-| **16 AI Agents** | Specialized content design agents for errors, CTAs, onboarding, mobile, a11y, tone, notifications, search, legal/privacy, chatbot design, information architecture, and more. |
+| **17 AI Agents** | Specialized content design agents for errors, CTAs, onboarding, mobile, a11y, tone, notifications, search, legal/privacy, chatbot design, information architecture, content consistency, and more. |
 | **Scoring Tools** | Readability analysis (Flesch-Kincaid), content linting, WCAG accessibility checks, and brand voice scoring — all offline, no API key needed. |
 | **Auto-Validation** | Post-processing pipeline that extracts content fragments from agent output and validates against UI constraints (character limits, platform conventions, a11y, localization expansion). |
 | **Multi-Agent Workflows** | Chain agents in pipelines (e.g., "audit → tone check → a11y → polish"). Supports sequential and parallel execution. |
@@ -57,10 +57,11 @@ cd-agency/
 │   ├── server.py      JSON-RPC server with 12 tools and 3 resources
 │   └── README.md      MCP integration guide
 │
-├── content-design/    16 agent definitions (.md with YAML frontmatter)
-├── workflows/         5 workflow pipelines (.yaml)
+├── content-design/    17 agent definitions (.md with YAML frontmatter)
+├── knowledge/         52 curated content design resources (books, case studies, domains)
+├── workflows/         6 workflow pipelines (.yaml)
 ├── presets/           4 design system voice profiles (.yaml)
-└── tests/             490+ unit and integration tests (pytest)
+└── tests/             541 unit and integration tests (pytest)
 ```
 
 ## Design Principles

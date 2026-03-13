@@ -1,6 +1,6 @@
 # GitHub Copilot Instructions for CD Agency
 
-This is a Content Design Agency — 15 specialized AI agents for UX writing and content design.
+This is a Content Design Agency — 17 specialized AI agents for UX writing and content design.
 
 ## Key context
 
@@ -8,7 +8,7 @@ This is a Content Design Agency — 15 specialized AI agents for UX writing and 
 - CLI built with Click + Rich (`runtime/cli.py`)
 - Agent definitions are Markdown files with YAML frontmatter in `content-design/`
 - Scoring tools (readability, lint, a11y, voice) in `tools/` — work without API key
-- 194+ tests in `tests/` using pytest — run with `python -m pytest tests/`
+- 541 tests in `tests/` using pytest — run with `python -m pytest tests/`
 - Config in `.cd-agency.yaml` or environment variables
 
 ## When writing code

@@ -1,13 +1,14 @@
-# CD Agency v0.4.0 Documentation
+# CD Agency v0.5.0 Documentation
 
 > AI-powered content design agents for UX writers, conversation designers, and product teams.
 
 ## About This Documentation
 
 This is the complete API and usage reference for **CD Agency**, a Python toolkit
-containing 16 specialized AI agents for UX writing, content design, and copy
+containing 17 specialized AI agents for UX writing, content design, and copy
 optimization. It includes a CLI, scoring tools, auto-validation, content
-versioning, multi-agent workflows, and design system presets.
+versioning, multi-agent workflows, design system presets, a knowledge base of
+52 curated content design resources, and a TUI studio.
 
 **Stability Index:**
 
@@ -69,7 +70,7 @@ module:
 ### Agents
 
 - [Agent Format Specification](agent-format.md)
-- [All 16 Agents](agents.md)
+- [All 17 Agents](agents.md)
 - [Creating Custom Agents](custom-agents.md)
 
 ### Workflows

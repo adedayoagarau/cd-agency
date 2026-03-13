@@ -1,8 +1,8 @@
-# All 16 Agents
+# All 17 Agents
 
 > Stability: Stable
 
-CD Agency ships with 16 specialized content design agents.
+CD Agency ships with 17 specialized content design agents.
 
 ## Agent Catalog
 
@@ -26,6 +26,7 @@ CD Agency ships with 16 specialized content design agents.
 | Onboarding Flow Designer | `onboarding-flow-designer` | Guides users to their first success moment |
 | Search Experience Writer | `search-experience-writer` | Optimizes search interfaces — from input hints to no-results messages |
 | Tone Evaluation Agent | `tone-evaluation-agent` | Assesses and refines emotional register and content feel |
+| Content Consistency Checker | `content-consistency-checker` | Audits content for terminology consistency, voice alignment, and pattern adherence |
 
 ### Advanced
 
@@ -155,6 +156,16 @@ CD Agency ships with 16 specialized content design agents.
 - **Required Input:** `content_or_context` — The content to analyze (a page, flow, feature description, or set of UI strings)
 - **Optional Inputs:** `scope`, `existing_taxonomy`, `target_audience`, `platform`
 - **Outputs:** `entities`, `relationships`, `content_model`, `naming_recommendations`, `structural_patterns`, `consistency_flags`
+
+### Content Consistency Checker
+
+- **Slug:** `content-consistency-checker`
+- **Aliases:** `consistency`, `checker`
+- **Difficulty:** intermediate
+- **Tags:** `consistency`, `terminology`, `audit`, `governance`, `patterns`, `style-guide`
+- **Required Input:** `content` — The content to check for consistency (UI text, page copy, flow, etc.)
+- **Optional Inputs:** `existing_terms`, `product_area`, `comparison_content`, `style_guide_notes`
+- **Outputs:** `consistency_report`, `terminology_issues`, `voice_alignment`, `pattern_violations`, `recommendations`
 
 ### Technical Documentation Writer
 
