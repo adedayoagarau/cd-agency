@@ -4,18 +4,18 @@
 
 ## What This Project Is
 
-**CD Agency** is a Content Design Agency — a Python package with 15 specialized AI agents for UX writing, content design, and copy optimization. It includes a CLI, scoring tools, multi-agent workflows, design system presets, and project memory.
+**CD Agency** is a Content Design Agency — a Python package with 17 specialized AI agents for UX writing, content design, and copy optimization. It includes a CLI, scoring tools, multi-agent workflows, design system presets, a knowledge base, content versioning, a TUI studio, and project memory.
 
 ## Quick Reference
 
 | Component | Location | Description |
 |-----------|----------|-------------|
-| Agents | `content-design/*.md` | 15 agent definitions with YAML frontmatter |
+| Agents | `content-design/*.md` | 17 agent definitions with YAML frontmatter |
 | Runtime | `runtime/*.py` | Agent loading, registry, runner, CLI, config, memory |
 | Tools | `tools/*.py` | Readability, linter, a11y, voice scoring, export, analytics |
-| Workflows | `workflows/*.yaml` | 5 multi-agent pipelines |
+| Workflows | `workflows/*.yaml` | 6 multi-agent pipelines |
 | Presets | `presets/*.yaml` | 4 design system voice profiles |
-| Tests | `tests/*.py` | 194+ pytest unit tests |
+| Tests | `tests/*.py` | 541 pytest unit and integration tests |
 
 ## Tech Stack
 

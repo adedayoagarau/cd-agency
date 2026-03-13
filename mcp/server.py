@@ -569,7 +569,7 @@ def handle_resource_read(uri: str) -> dict[str, Any]:
 
 SERVER_INFO = {
     "name": "cd-agency",
-    "version": "0.4.0",
+    "version": "0.5.0",
 }
 
 CAPABILITIES = {

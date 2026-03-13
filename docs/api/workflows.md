@@ -2,7 +2,7 @@
 
 > Stability: Stable
 
-CD Agency ships with 5 pre-built multi-agent workflows.
+CD Agency ships with 6 pre-built multi-agent workflows.
 
 ## Content Audit
 
@@ -101,3 +101,26 @@ cd-agency workflow run notification-suite \
 
 **Input fields:** `notification_context`, `channels`, `brand_guidelines`,
 `urgency`
+
+---
+
+## Content Quality Pipeline
+
+**Slug:** `content-quality-pipeline`
+**Steps:** 5
+**Agents:** Generalist → Consistency Checker → Tone + Accessibility (parallel) → Microcopy
+
+End-to-end content quality gate. The Generalist rewrites, the Consistency
+Checker audits terminology and patterns, Tone and Accessibility run in parallel,
+and Microcopy polishes the final output.
+
+```bash
+cd-agency workflow run content-quality-pipeline \
+  -F "content=Welcome to your new workspace! Click here to get started." \
+  -F "brand_guidelines=Friendly, professional, sentence case" \
+  -F "target_audience=New users"
+```
+
+**Input fields:** `content`, `brand_guidelines`, `target_audience`,
+`existing_terms`, `product_area`, `target_tone`, `channel`, `content_type`,
+`ui_context`

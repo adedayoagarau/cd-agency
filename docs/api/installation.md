@@ -34,12 +34,12 @@ This adds `pytest` and `pytest-asyncio` for running the test suite.
 
 ```bash
 cd-agency --version
-# cd-agency, version 0.4.0
+# cd-agency, version 0.5.0
 ```
 
 ```bash
 cd-agency agent list
-# Shows all 15 agents in a table
+# Shows all 17 agents in a table
 ```
 
 ## Dependencies

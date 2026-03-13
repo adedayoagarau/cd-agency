@@ -26,7 +26,7 @@ def _get_registry(agents_dir: str | None = None) -> AgentRegistry:
 
 
 @click.group()
-@click.version_option(version="0.4.0", prog_name="cd-agency")
+@click.version_option(version="0.5.0", prog_name="cd-agency")
 def main() -> None:
     """Content Design Agency — AI-powered content design agents."""
     pass
@@ -1582,6 +1582,31 @@ def interactive_mode() -> None:
             if related:
                 console.print(f"\n[bold cyan]Handing off to: {related.name}[/bold cyan]")
                 console.print(f"[dim]Run: cd-agency agent run {related.slug} -i \"{result.content[:50]}...\"[/dim]")
+
+
+@main.command("studio")
+@click.option("--preset", "-p", help="Design system preset to activate")
+@click.option("--content", "-c", help="Initial content to load into the editor")
+@click.option("--file", "-f", "content_file", type=click.Path(exists=True), help="Load content from file")
+def studio(preset: str | None, content: str | None, content_file: str | None) -> None:
+    """Launch the interactive studio (TUI).
+
+    A multi-panel terminal workspace for content design — browse agents,
+    chat conversationally, edit content with live scoring, and manage
+    project memory.
+
+    Keyboard shortcuts: Ctrl+P (commands), Ctrl+T (chat/form),
+    Ctrl+M (memory), Ctrl+B (sidebar), Ctrl+Q (quit).
+    """
+    from runtime.tui import StudioApp
+
+    initial_content = content or ""
+    if content_file:
+        from pathlib import Path
+        initial_content = Path(content_file).read_text(encoding="utf-8")
+
+    app = StudioApp(preset=preset, initial_content=initial_content)
+    app.run()
 
 
 if __name__ == "__main__":

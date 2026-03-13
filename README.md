@@ -1,6 +1,6 @@
 # Content Design Agency
 
-A complete AI agency specializing in Content Design. 15 specialized agents for UX writing, microcopy, content strategy, and conversation design — each with structured inputs/outputs, system prompts, and few-shot examples ready for integration.
+A complete AI agency specializing in Content Design. 17 specialized agents for UX writing, microcopy, content strategy, and conversation design — each with structured inputs/outputs, system prompts, and few-shot examples ready for integration.
 
 Each agent is:
 
@@ -40,6 +40,8 @@ The decision tree maps every common content design task to the right agent, incl
 | [Privacy & Legal Content Simplifier](./content-design/privacy-legal-content-simplifier.md) | Legal clarity, compliance content | Translating legal jargon into plain language |
 | [Empty State & Placeholder Specialist](./content-design/empty-state-placeholder-specialist.md) | Empty states, loading messages | Turning blank screens into guidance opportunities |
 | [Search Experience Writer](./content-design/search-experience-writer.md) | Search UI, no-results, filters | Optimizing search placeholders, results, and recovery |
+| [Information Architect](./content-design/information-architect.md) | Content structure, taxonomy, IA | Structuring content hierarchies, navigation labels, and IA decisions |
+| [Content Consistency Checker](./content-design/content-consistency-checker.md) | Terminology, voice, pattern audit | Auditing terminology consistency and pattern adherence across your product |
 
 ## Agent File Structure
 
@@ -141,7 +143,7 @@ print(result.latency_ms)    # Response time
 
 ```
 cd-agency/
-├── content-design/     # 15 agent definitions + template
+├── content-design/     # 17 agent definitions + template
 ├── runtime/            # Core SDK
 │   ├── agent.py        # Agent model
 │   ├── loader.py       # Markdown parser
@@ -164,16 +166,19 @@ cd-agency/
 │   ├── shopify-polaris.yaml
 │   ├── atlassian-design.yaml
 │   └── apple-hig.yaml
-├── tests/              # 226 unit tests
-├── docs/               # Specs and guides
-│   ├── WHEN_TO_USE.md
-│   ├── figma-plugin-spec.md
-│   └── vscode-extension-spec.md
+├── tests/              # 541 unit and integration tests
+├── knowledge/          # 52 curated content design resources
+│   ├── books/          # Key UX writing and content design books
+│   ├── case-studies/   # Real-world case studies (Mailchimp, GOV.UK, Slack, etc.)
+│   ├── domains/        # Domain-specific guides (fintech, healthcare, edtech, etc.)
+│   ├── patterns/       # UX writing patterns and frameworks
+│   └── research/       # Content design research and foundations
+├── api/                # REST API (FastAPI)
+├── mcp/                # Model Context Protocol server
+├── docs/               # Documentation site (MkDocs Material)
 ├── .github/            # GitHub Action + issue templates
 ├── examples/           # 17 before/after case studies
-├── workflows/          # 5 multi-agent pipeline definitions
-├── IMPLEMENTATION_PLAN.md
-├── ROADMAP.md
+├── workflows/          # 6 multi-agent pipeline definitions
 └── README.md
 ```
 
@@ -217,12 +222,13 @@ cd-agency workflow run content-audit --field content="Your button text here"
 cd-agency workflow run launch-content-package --field feature_name="Team Insights"
 ```
 
-5 pre-built workflows in [`workflows/`](./workflows/):
+6 pre-built workflows in [`workflows/`](./workflows/):
 - **Content Audit** — Generalist → Tone → Accessibility → Microcopy (sequential)
 - **Error Message Pipeline** — Error Architect → Tone → A11y → Mobile (sequential)
 - **Launch Content Package** — Onboarding + CTA + Empty State (parallel) → Generalist (consolidation)
 - **Localization Prep** — L10n → Generalist simplification → A11y check (sequential)
 - **Notification Suite** — Notifications → Mobile → Tone → CTA (sequential)
+- **Content Quality Pipeline** — Generalist → Consistency Checker → Tone + A11y (parallel) → Microcopy (full quality gate)
 
 ## Scoring & Evaluation
 
@@ -288,6 +294,46 @@ cd-agency interactive
 2. Walks through required inputs with prompts
 3. Shows agent output with optional quality scoring
 4. Offers handoff to related agents
+
+## TUI Studio
+
+A full terminal UI with chat and form modes for iterative content design:
+
+```bash
+cd-agency studio
+```
+
+Chat with agents, score content, and iterate — all without leaving the terminal.
+
+## Knowledge Base
+
+Agents draw from a curated library of 52 content design resources:
+
+- **Books** — *Content Design*, *Strategic Writing for UX*, *Microcopy: The Complete Guide*, and more
+- **Case Studies** — Mailchimp voice & tone, GOV.UK transformation, Slack errors, Stripe docs, Duolingo onboarding
+- **Domain Guides** — Fintech, healthcare, ecommerce, edtech, gaming, marketplace
+- **Patterns & Research** — UX writing patterns, operations playbooks, emerging trends, foundational frameworks
+
+Knowledge is automatically injected into agent context for better, more grounded output.
+
+## Content Versioning
+
+Every agent run is tracked with before/after content:
+
+```bash
+# Browse content history
+cd-agency history list
+
+# View a specific version
+cd-agency history show <version-id>
+
+# Search history
+cd-agency history search "onboarding"
+```
+
+## Preflight Analysis & Auto-Validation
+
+Before generating, agents can surface clarifying questions, constraints, and edge cases. After generating, output is automatically validated against UI constraints (character limits, platform conventions, accessibility, localization expansion).
 
 ## Export Formats
 

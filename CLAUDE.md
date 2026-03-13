@@ -1,23 +1,24 @@
 # CD Agency — Claude Code Instructions
 
-This is a **Content Design Agency** — a collection of 15 specialized AI agents for UX writing, content design, and copy optimization. It is a Python package with a CLI, scoring tools, workflows, and design system presets.
+This is a **Content Design Agency** — a collection of 17 specialized AI agents for UX writing, content design, and copy optimization. It is a Python package with a CLI, scoring tools, workflows, design system presets, a knowledge base, content versioning, and a TUI studio.
 
 ## Architecture
 
 ```
 runtime/         → Core SDK: agent loading, registry, runner, CLI, memory, config
 tools/           → Scoring tools: readability, linter, a11y, voice, export, analytics
-content-design/  → 15 agent definition files (.md with YAML frontmatter)
-workflows/       → 5 multi-agent pipeline definitions (.yaml)
+content-design/  → 17 agent definition files (.md with YAML frontmatter)
+workflows/       → 6 multi-agent pipeline definitions (.yaml)
 presets/         → 4 design system voice profiles (Material, Polaris, Atlassian, Apple HIG)
-tests/           → 194+ unit tests (pytest)
+knowledge/       → 52 curated content design resources (books, case studies, domains, patterns)
+tests/           → 541 unit and integration tests (pytest)
 ```
 
 ## Key Commands
 
 ```bash
 # Run the CLI
-cd-agency agent list                    # List all 15 agents
+cd-agency agent list                    # List all 17 agents
 cd-agency agent run error -i "..."     # Run an agent
 cd-agency score all -i "..."           # Score content (readability, lint, a11y)
 cd-agency workflow run content-audit    # Run a multi-agent pipeline
@@ -52,5 +53,5 @@ Agents are `.md` files in `content-design/` with YAML frontmatter defining name,
 
 ## Testing
 
-Always run `python -m pytest tests/` before committing. All 194+ tests should pass.
+Always run `python -m pytest tests/` before committing. All 541 tests should pass.
 Tests don't require an API key — they test agent loading, scoring, linting, and CLI commands.

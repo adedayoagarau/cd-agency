@@ -233,6 +233,108 @@ class AgentRunner:
         )
 
 
+    def run_conversation(
+        self,
+        agent: Agent,
+        messages: list[dict[str, str]],
+        *,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> AgentOutput:
+        """Execute a multi-turn conversation with an agent.
+
+        Args:
+            agent: The agent to execute.
+            messages: List of {"role": "user"|"assistant", "content": "..."} dicts.
+            model: Override the default model.
+            max_tokens: Override the default max tokens.
+            temperature: Override the default temperature.
+
+        Returns:
+            AgentOutput with the agent's response and metadata.
+        """
+        # Build system message with full context injection
+        system_message = agent.build_system_message()
+
+        if self.config.product_context.is_configured():
+            context_block = self.config.product_context.build_context_block()
+            system_message = f"{system_message}\n\n---\n\n{context_block}"
+
+        from runtime.design_system import load_design_system_from_config
+        design_system = load_design_system_from_config()
+        if design_system:
+            ds_block = design_system.build_context_block()
+            system_message = f"{system_message}\n\n---\n\n{ds_block}"
+
+        from runtime.memory import ProjectMemory
+        memory = ProjectMemory.load()
+        memory_context = memory.get_context_for_agent(agent.name)
+        if memory_context:
+            system_message = f"{system_message}\n\n---\n\n{memory_context}"
+
+        # Resolve parameters
+        resolved_model = model or self.config.model
+        resolved_max_tokens = max_tokens or self.config.max_tokens
+        resolved_temperature = temperature if temperature is not None else self.config.temperature
+
+        # Make multi-turn API call
+        last_error: Exception | None = None
+        for attempt in range(self.config.max_retries):
+            try:
+                start = time.monotonic()
+                response = self.client.messages.create(
+                    model=resolved_model,
+                    max_tokens=resolved_max_tokens,
+                    temperature=resolved_temperature,
+                    system=system_message,
+                    messages=messages,
+                )
+                elapsed_ms = (time.monotonic() - start) * 1000
+
+                content = ""
+                for block in response.content:
+                    if block.type == "text":
+                        content += block.text
+
+                output = AgentOutput(
+                    content=content,
+                    agent_name=agent.name,
+                    model=resolved_model,
+                    input_tokens=response.usage.input_tokens,
+                    output_tokens=response.usage.output_tokens,
+                    latency_ms=elapsed_ms,
+                    raw_response=response,
+                )
+
+                # Record analytics
+                try:
+                    from tools.analytics import Analytics
+                    analytics = Analytics.load()
+                    analytics.record_agent_run(
+                        agent_name=agent.name,
+                        input_tokens=output.input_tokens,
+                        output_tokens=output.output_tokens,
+                        latency_ms=output.latency_ms,
+                    )
+                except Exception:
+                    pass
+
+                return output
+            except anthropic.APIStatusError as e:
+                last_error = e
+                if e.status_code != 429 and 400 <= e.status_code < 500:
+                    raise
+                if attempt < self.config.max_retries - 1:
+                    time.sleep(2 ** attempt)
+            except anthropic.APIConnectionError as e:
+                last_error = e
+                if attempt < self.config.max_retries - 1:
+                    time.sleep(2 ** attempt)
+
+        raise last_error  # type: ignore[misc]
+
+
 def run_agent(
     agent: Agent,
     user_input: dict[str, Any],
