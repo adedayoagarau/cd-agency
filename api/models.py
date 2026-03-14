@@ -250,3 +250,149 @@ class HistoryStatsResponse(BaseModel):
     count: int
     agents_used: list[str]
     latest: dict[str, Any] | None = None
+
+
+# ── Conversation Models ────────────────────────────────────────────────────
+
+
+class ConversationMessage(BaseModel):
+    """A single message in a multi-turn conversation."""
+
+    role: str = Field(..., description="Message role: 'user' or 'assistant'")
+    content: str = Field(..., description="Message content")
+
+
+class ConversationRequest(BaseModel):
+    """Request body for multi-turn agent conversation."""
+
+    messages: list[ConversationMessage] = Field(
+        ..., min_length=1, description="Conversation history"
+    )
+    preset: str | None = Field(None, description="Optional design system preset name")
+
+
+class ConversationResponse(BaseModel):
+    """Response from a multi-turn conversation."""
+
+    content: str
+    agent_name: str
+    model: str = ""
+    input_tokens: int = 0
+    output_tokens: int = 0
+    latency_ms: float = 0.0
+
+
+# ── Workflow Models ────────────────────────────────────────────────────────
+
+
+class WorkflowStepSchema(BaseModel):
+    """Schema for a single workflow step."""
+
+    name: str
+    agent: str
+    parallel_group: str | None = None
+    condition: str | None = None
+
+
+class WorkflowSummary(BaseModel):
+    """Lightweight workflow for list endpoints."""
+
+    slug: str
+    name: str
+    description: str
+    step_count: int
+
+
+class WorkflowDetail(BaseModel):
+    """Full workflow with step definitions."""
+
+    slug: str
+    name: str
+    description: str
+    steps: list[WorkflowStepSchema]
+
+
+class WorkflowRunRequest(BaseModel):
+    """Request body for running a workflow."""
+
+    input: dict[str, Any] = Field(..., description="Workflow input fields")
+
+
+class StepResultResponse(BaseModel):
+    """Result from a single workflow step."""
+
+    step_name: str
+    agent_name: str
+    output: str
+    skipped: bool = False
+    error: str | None = None
+
+
+class WorkflowRunResponse(BaseModel):
+    """Response from running a workflow."""
+
+    workflow_name: str
+    steps: list[StepResultResponse]
+    final_output: str
+    total_tokens: int = 0
+    latency_ms: float = 0.0
+
+
+# ── Scrape Models ──────────────────────────────────────────────────────────
+
+
+class ScrapeRequest(BaseModel):
+    """Request body for web page scraping."""
+
+    url: str = Field(..., description="URL to scrape")
+
+
+class ScrapeResponse(BaseModel):
+    """Structured content extracted from a web page."""
+
+    url: str
+    title: str = ""
+    description: str = ""
+    headings: list[str] = []
+    paragraphs: list[str] = []
+    links: list[str] = []
+    images: list[str] = []
+    meta: dict[str, str] = {}
+    raw_text: str = ""
+
+
+# ── Export Models ──────────────────────────────────────────────────────────
+
+
+class ExportEntry(BaseModel):
+    """A single content entry for export."""
+
+    id: str = ""
+    source: str
+    target: str
+    context: str = ""
+    agent: str = ""
+    notes: str = ""
+
+
+class ExportRequest(BaseModel):
+    """Request body for content export."""
+
+    entries: list[ExportEntry] = Field(..., min_length=1)
+    format: str = Field(..., description="Export format: json, csv, markdown, xliff")
+
+
+# ── Batch Models ───────────────────────────────────────────────────────────
+
+
+class BatchItem(BaseModel):
+    """A single item in a batch request."""
+
+    input: dict[str, Any] = Field(..., description="Input fields for one agent run")
+
+
+class BatchRequest(BaseModel):
+    """Request body for batch agent execution."""
+
+    items: list[BatchItem] = Field(..., min_length=1, max_length=50)
+    preset: str | None = Field(None, description="Optional design system preset")

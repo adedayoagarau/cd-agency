@@ -6,8 +6,18 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from api.deps import get_registry, get_runner, verify_api_key
-from api.models import AgentDetail, AgentInputSchema, AgentOutputSchema, AgentRunRequest, AgentRunResponse, AgentSummary
+from api.deps import get_registry, get_runner, get_runner_with_user_key, verify_api_key
+from api.models import (
+    AgentDetail,
+    AgentInputSchema,
+    AgentOutputSchema,
+    AgentRunRequest,
+    AgentRunResponse,
+    AgentSummary,
+    BatchRequest,
+    ConversationRequest,
+    ConversationResponse,
+)
 from runtime.registry import AgentRegistry
 from runtime.runner import AgentRunner
 
@@ -94,7 +104,7 @@ async def run_agent(
     slug: str,
     body: AgentRunRequest,
     registry: Annotated[AgentRegistry, Depends(get_registry)],
-    runner: Annotated[AgentRunner, Depends(get_runner)],
+    runner: Annotated[AgentRunner, Depends(get_runner_with_user_key)],
     _auth: Annotated[str | None, Depends(verify_api_key)] = None,
 ) -> AgentRunResponse:
     """Run an agent with the provided input."""
@@ -126,3 +136,76 @@ async def run_agent(
         output_tokens=output.output_tokens,
         latency_ms=output.latency_ms,
     )
+
+
+@router.post("/{slug}/chat", response_model=ConversationResponse)
+async def chat_with_agent(
+    slug: str,
+    body: ConversationRequest,
+    registry: Annotated[AgentRegistry, Depends(get_registry)],
+    runner: Annotated[AgentRunner, Depends(get_runner_with_user_key)],
+    _auth: Annotated[str | None, Depends(verify_api_key)] = None,
+) -> ConversationResponse:
+    """Run a multi-turn conversation with an agent."""
+    agent = registry.get(slug)
+    if agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent '{slug}' not found",
+        )
+
+    messages = [{"role": m.role, "content": m.content} for m in body.messages]
+
+    try:
+        output = runner.run_conversation(agent, messages)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Conversation failed: {exc}",
+        )
+
+    return ConversationResponse(
+        content=output.content,
+        agent_name=output.agent_name,
+        model=output.model,
+        input_tokens=output.input_tokens,
+        output_tokens=output.output_tokens,
+        latency_ms=output.latency_ms,
+    )
+
+
+@router.post("/{slug}/batch", response_model=list[AgentRunResponse])
+async def batch_run_agent(
+    slug: str,
+    body: BatchRequest,
+    registry: Annotated[AgentRegistry, Depends(get_registry)],
+    runner: Annotated[AgentRunner, Depends(get_runner_with_user_key)],
+    _auth: Annotated[str | None, Depends(verify_api_key)] = None,
+) -> list[AgentRunResponse]:
+    """Run an agent on multiple inputs sequentially."""
+    agent = registry.get(slug)
+    if agent is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Agent '{slug}' not found",
+        )
+
+    results = []
+    for item in body.items:
+        try:
+            output = runner.run(agent, item.input)
+            results.append(AgentRunResponse(
+                content=output.content,
+                agent_name=output.agent_name,
+                model=output.model,
+                input_tokens=output.input_tokens,
+                output_tokens=output.output_tokens,
+                latency_ms=output.latency_ms,
+            ))
+        except Exception as exc:
+            results.append(AgentRunResponse(
+                content=f"Error: {exc}",
+                agent_name=agent.name,
+            ))
+
+    return results

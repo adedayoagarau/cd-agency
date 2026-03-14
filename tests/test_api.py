@@ -247,3 +247,182 @@ class TestPresetEndpoints:
     def test_get_preset_not_found(self):
         response = client.get("/api/v1/presets/nonexistent-preset")
         assert response.status_code == 404
+
+
+# ── Workflows ───────────────────────────────────────────────────────────────
+
+
+class TestWorkflowEndpoints:
+    def test_list_workflows(self):
+        response = client.get("/api/v1/workflows")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        assert len(data) >= 5
+        slugs = [w["slug"] for w in data]
+        assert "content-audit" in slugs
+
+    def test_get_workflow_detail(self):
+        response = client.get("/api/v1/workflows/content-audit")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["slug"] == "content-audit"
+        assert len(data["steps"]) > 0
+
+    def test_get_workflow_not_found(self):
+        response = client.get("/api/v1/workflows/nonexistent-workflow")
+        assert response.status_code == 404
+
+
+# ── Export ──────────────────────────────────────────────────────────────────
+
+
+class TestExportEndpoints:
+    def test_export_json(self):
+        response = client.post(
+            "/api/v1/export",
+            json={
+                "entries": [
+                    {"source": "Error 500", "target": "Something went wrong", "context": "server error"}
+                ],
+                "format": "json",
+            },
+        )
+        assert response.status_code == 200
+        data = json.loads(response.text)
+        assert "entries" in data
+        assert len(data["entries"]) == 1
+
+    def test_export_csv(self):
+        response = client.post(
+            "/api/v1/export",
+            json={
+                "entries": [
+                    {"source": "Save", "target": "Save changes"}
+                ],
+                "format": "csv",
+            },
+        )
+        assert response.status_code == 200
+        assert "Source" in response.text
+        assert "Save" in response.text
+
+    def test_export_markdown(self):
+        response = client.post(
+            "/api/v1/export",
+            json={
+                "entries": [
+                    {"source": "Cancel", "target": "Discard changes"}
+                ],
+                "format": "markdown",
+            },
+        )
+        assert response.status_code == 200
+        assert "Cancel" in response.text
+
+    def test_export_xliff(self):
+        response = client.post(
+            "/api/v1/export",
+            json={
+                "entries": [
+                    {"source": "OK", "target": "Got it"}
+                ],
+                "format": "xliff",
+            },
+        )
+        assert response.status_code == 200
+        assert "<xliff" in response.text
+
+    def test_export_invalid_format(self):
+        response = client.post(
+            "/api/v1/export",
+            json={
+                "entries": [{"source": "a", "target": "b"}],
+                "format": "pdf",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_export_formats_list(self):
+        response = client.get("/api/v1/export/formats")
+        assert response.status_code == 200
+        data = response.json()
+        ids = [f["id"] for f in data]
+        assert "json" in ids
+        assert "csv" in ids
+        assert "xliff" in ids
+
+
+# ── Conversation ────────────────────────────────────────────────────────────
+
+
+class TestConversationEndpoints:
+    def test_chat_agent_not_found(self):
+        response = client.post(
+            "/api/v1/agents/nonexistent/chat",
+            json={
+                "messages": [{"role": "user", "content": "hello"}]
+            },
+            headers={"X-Anthropic-Key": "test-key"},
+        )
+        assert response.status_code == 404
+
+    def test_chat_empty_messages_rejected(self):
+        response = client.post(
+            "/api/v1/agents/error-message-architect/chat",
+            json={"messages": []},
+            headers={"X-Anthropic-Key": "test-key"},
+        )
+        assert response.status_code == 422
+
+
+# ── Batch ───────────────────────────────────────────────────────────────────
+
+
+class TestBatchEndpoints:
+    def test_batch_agent_not_found(self):
+        response = client.post(
+            "/api/v1/agents/nonexistent/batch",
+            json={
+                "items": [{"input": {"error_message": "Error 500"}}]
+            },
+            headers={"X-Anthropic-Key": "test-key"},
+        )
+        assert response.status_code == 404
+
+    def test_batch_empty_items_rejected(self):
+        response = client.post(
+            "/api/v1/agents/error-message-architect/batch",
+            json={"items": []},
+            headers={"X-Anthropic-Key": "test-key"},
+        )
+        assert response.status_code == 422
+
+
+# ── BYOK ────────────────────────────────────────────────────────────────────
+
+
+class TestBYOK:
+    def test_run_agent_without_key_returns_401(self):
+        """Agent run should fail without any API key when server has none."""
+        with patch.dict("os.environ", {}, clear=False):
+            # Remove server key if present
+            import os
+            old_key = os.environ.pop("ANTHROPIC_API_KEY", None)
+            try:
+                response = client.post(
+                    "/api/v1/agents/error-message-architect/run",
+                    json={"input": {"error_message": "Error 500"}},
+                )
+                assert response.status_code == 401
+            finally:
+                if old_key:
+                    os.environ["ANTHROPIC_API_KEY"] = old_key
+
+    def test_scoring_works_without_api_key(self):
+        """Scoring endpoints should work without any Anthropic key."""
+        response = client.post(
+            "/api/v1/score/readability",
+            json={"text": "This is a test sentence."},
+        )
+        assert response.status_code == 200

@@ -60,6 +60,14 @@ api = [
     "uvicorn[standard]>=0.25.0",
     "python-multipart>=0.0.6",
 ]
+web = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.25.0",
+    "python-multipart>=0.0.6",
+    "httpx>=0.25.0",
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+]
 
 [project.scripts]
 cd-agency = "runtime.cli:main"

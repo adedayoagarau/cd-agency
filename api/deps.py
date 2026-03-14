@@ -75,3 +75,29 @@ async def verify_api_key(
         )
 
     return x_api_key
+
+
+# ── BYOK (Bring Your Own Key) ───────────────────────────────────────────────
+
+
+async def get_runner_with_user_key(
+    x_anthropic_key: Annotated[str | None, Header()] = None,
+) -> AgentRunner:
+    """Create an AgentRunner using the caller's Anthropic API key.
+
+    Priority:
+    1. ``X-Anthropic-Key`` request header (user-provided, per-request)
+    2. Server-side ``ANTHROPIC_API_KEY`` environment variable (fallback)
+    3. 401 if neither is available
+    """
+    api_key = x_anthropic_key or os.environ.get("ANTHROPIC_API_KEY", "")
+
+    if not api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Anthropic API key required. Provide via X-Anthropic-Key header.",
+        )
+
+    config = Config.from_env()
+    config.api_key = api_key
+    return AgentRunner(config)
