@@ -6,6 +6,7 @@ import pytest
 
 from runtime.agent import Agent, AgentInput, AgentOutput
 from runtime.config import Config
+from runtime.providers import CompletionResult
 from runtime.runner import AgentRunner
 
 
@@ -39,24 +40,13 @@ class TestAgentRunner:
         with pytest.raises(ValueError, match="Empty required input"):
             runner.run(sample_agent, {"content": ""})
 
-    @patch("runtime.runner.anthropic.Anthropic")
-    def test_run_success(self, mock_anthropic_cls: MagicMock, mock_config: Config, sample_agent: Agent):
-        # Build mock response
-        mock_text_block = MagicMock()
-        mock_text_block.type = "text"
-        mock_text_block.text = "Here is the improved content."
-
-        mock_usage = MagicMock()
-        mock_usage.input_tokens = 100
-        mock_usage.output_tokens = 50
-
-        mock_response = MagicMock()
-        mock_response.content = [mock_text_block]
-        mock_response.usage = mock_usage
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_response
-        mock_anthropic_cls.return_value = mock_client
+    @patch("runtime.runner.create_completion")
+    def test_run_success(self, mock_create: MagicMock, mock_config: Config, sample_agent: Agent):
+        mock_create.return_value = CompletionResult(
+            content="Here is the improved content.",
+            input_tokens=100,
+            output_tokens=50,
+        )
 
         runner = AgentRunner(mock_config)
         result = runner.run(sample_agent, {"content": "Fix this button label"})
@@ -68,30 +58,24 @@ class TestAgentRunner:
         assert result.output_tokens == 50
         assert result.latency_ms > 0
 
-        # Verify the API was called with correct parameters
-        call_kwargs = mock_client.messages.create.call_args.kwargs
+        # Verify the provider was called with correct parameters
+        call_kwargs = mock_create.call_args.kwargs
         assert call_kwargs["model"] == "test-model"
+        assert call_kwargs["provider_name"] == "anthropic"
         assert "You are a test agent" in call_kwargs["system"]
-        assert call_kwargs["messages"][0]["role"] == "user"
 
-    @patch("runtime.runner.anthropic.Anthropic")
-    def test_run_with_model_override(self, mock_anthropic_cls: MagicMock, mock_config: Config, sample_agent: Agent):
-        mock_text_block = MagicMock()
-        mock_text_block.type = "text"
-        mock_text_block.text = "Result"
-
-        mock_response = MagicMock()
-        mock_response.content = [mock_text_block]
-        mock_response.usage = MagicMock(input_tokens=10, output_tokens=5)
-
-        mock_client = MagicMock()
-        mock_client.messages.create.return_value = mock_response
-        mock_anthropic_cls.return_value = mock_client
+    @patch("runtime.runner.create_completion")
+    def test_run_with_model_override(self, mock_create: MagicMock, mock_config: Config, sample_agent: Agent):
+        mock_create.return_value = CompletionResult(
+            content="Result",
+            input_tokens=10,
+            output_tokens=5,
+        )
 
         runner = AgentRunner(mock_config)
         result = runner.run(sample_agent, {"content": "test"}, model="claude-opus-4-6")
 
-        call_kwargs = mock_client.messages.create.call_args.kwargs
+        call_kwargs = mock_create.call_args.kwargs
         assert call_kwargs["model"] == "claude-opus-4-6"
 
     def test_system_message_composition(self, sample_agent: Agent):

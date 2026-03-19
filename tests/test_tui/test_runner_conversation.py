@@ -8,6 +8,7 @@ import pytest
 
 from runtime.agent import Agent, AgentOutput
 from runtime.config import Config
+from runtime.providers import CompletionResult
 from runtime.runner import AgentRunner
 
 
@@ -20,35 +21,31 @@ def _make_agent() -> Agent:
     )
 
 
-def _mock_response(content: str = "Test response", input_tokens: int = 50, output_tokens: int = 30):
-    """Create a mock Anthropic API response."""
-    mock = MagicMock()
-    text_block = MagicMock()
-    text_block.type = "text"
-    text_block.text = content
-    mock.content = [text_block]
-    mock.usage.input_tokens = input_tokens
-    mock.usage.output_tokens = output_tokens
-    return mock
+def _make_completion(content: str = "Test response", input_tokens: int = 50, output_tokens: int = 30):
+    """Create a mock CompletionResult."""
+    return CompletionResult(
+        content=content,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+    )
 
 
 def _make_runner():
-    """Create a runner with a mocked client."""
+    """Create a runner with test config."""
     config = Config(api_key="test-key")
     runner = AgentRunner(config)
-    mock_client = MagicMock()
-    runner._client = mock_client
-    return runner, mock_client
+    return runner
 
 
 class TestRunConversation:
     """Tests for AgentRunner.run_conversation()."""
 
-    def test_run_conversation_single_turn(self):
+    @patch("runtime.runner.create_completion")
+    def test_run_conversation_single_turn(self, mock_create):
         """Single-turn conversation should work like regular run."""
         agent = _make_agent()
-        runner, mock_client = _make_runner()
-        mock_client.messages.create.return_value = _mock_response("Hello!")
+        runner = _make_runner()
+        mock_create.return_value = _make_completion("Hello!")
 
         messages = [{"role": "user", "content": "Hi"}]
 
@@ -61,11 +58,12 @@ class TestRunConversation:
         assert result.content == "Hello!"
         assert result.agent_name == "Test Agent"
 
-    def test_run_conversation_multi_turn(self):
+    @patch("runtime.runner.create_completion")
+    def test_run_conversation_multi_turn(self, mock_create):
         """Multi-turn conversation should pass full history."""
         agent = _make_agent()
-        runner, mock_client = _make_runner()
-        mock_client.messages.create.return_value = _mock_response("Here are 3 options...")
+        runner = _make_runner()
+        mock_create.return_value = _make_completion("Here are 3 options...")
 
         messages = [
             {"role": "user", "content": "Fix this error: 500"},
@@ -79,15 +77,16 @@ class TestRunConversation:
             result = runner.run_conversation(agent, messages)
 
         assert result.content == "Here are 3 options..."
-        call_args = mock_client.messages.create.call_args
-        assert call_args.kwargs["messages"] == messages
+        call_kwargs = mock_create.call_args.kwargs
+        assert call_kwargs["messages"] == messages
 
-    def test_run_conversation_includes_system_context(self):
+    @patch("runtime.runner.create_completion")
+    def test_run_conversation_includes_system_context(self, mock_create):
         """System message should include agent prompt and context."""
         agent = _make_agent()
         agent.system_prompt = "You are an error message specialist."
-        runner, mock_client = _make_runner()
-        mock_client.messages.create.return_value = _mock_response()
+        runner = _make_runner()
+        mock_create.return_value = _make_completion()
 
         messages = [{"role": "user", "content": "Help"}]
 
@@ -96,14 +95,15 @@ class TestRunConversation:
             mock_memory.return_value = MagicMock(get_context_for_agent=MagicMock(return_value=""))
             runner.run_conversation(agent, messages)
 
-        call_args = mock_client.messages.create.call_args
-        assert "error message specialist" in call_args.kwargs["system"]
+        call_kwargs = mock_create.call_args.kwargs
+        assert "error message specialist" in call_kwargs["system"]
 
-    def test_run_conversation_records_analytics(self):
+    @patch("runtime.runner.create_completion")
+    def test_run_conversation_records_analytics(self, mock_create):
         """Conversation should record analytics."""
         agent = _make_agent()
-        runner, mock_client = _make_runner()
-        mock_client.messages.create.return_value = _mock_response()
+        runner = _make_runner()
+        mock_create.return_value = _make_completion()
 
         messages = [{"role": "user", "content": "Hi"}]
 
@@ -117,13 +117,12 @@ class TestRunConversation:
 
         mock_analytics.record_agent_run.assert_called_once()
 
-    def test_run_conversation_token_tracking(self):
+    @patch("runtime.runner.create_completion")
+    def test_run_conversation_token_tracking(self, mock_create):
         """Conversation should track token usage."""
         agent = _make_agent()
-        runner, mock_client = _make_runner()
-        mock_client.messages.create.return_value = _mock_response(
-            "Response", input_tokens=100, output_tokens=50
-        )
+        runner = _make_runner()
+        mock_create.return_value = _make_completion("Response", input_tokens=100, output_tokens=50)
 
         messages = [{"role": "user", "content": "Hi"}]
 

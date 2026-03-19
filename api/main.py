@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from api.routers import agents, history, presets, scoring, validate
+from api.routers import agents, history, presets, providers, scoring, validate
 from api.routers import export as export_router
 from api.routers import scrape, workflows
 
@@ -40,6 +40,7 @@ app.include_router(history.router, prefix="/api/v1")
 app.include_router(workflows.router, prefix="/api/v1")
 app.include_router(scrape.router, prefix="/api/v1")
 app.include_router(export_router.router, prefix="/api/v1")
+app.include_router(providers.router, prefix="/api/v1")
 
 
 # ── Health Check ─────────────────────────────────────────────────────────────

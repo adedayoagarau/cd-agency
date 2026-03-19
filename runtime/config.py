@@ -112,6 +112,9 @@ class Config:
     brand_voice_guide: str = ""
     output_format: str = "text"  # text, json, markdown
     product_context: ProductContext = field(default_factory=ProductContext)
+    provider: str = "anthropic"
+    provider_keys: dict[str, str] = field(default_factory=dict)
+    base_url: str = ""  # custom base URL override
 
     @classmethod
     def from_env(cls) -> Config:
@@ -128,11 +131,35 @@ class Config:
         context_data = file_config.get("product_context", {})
         product_context = ProductContext.from_dict(context_data) if context_data else ProductContext()
 
+        # Build provider keys from env vars and config file
+        provider_keys: dict[str, str] = file_config.get("provider_keys", {})
+        # Map well-known env vars to provider keys
+        _key_env_map = {
+            "anthropic": "ANTHROPIC_API_KEY",
+            "openai": "OPENAI_API_KEY",
+            "gemini": "GEMINI_API_KEY",
+            "openrouter": "OPENROUTER_API_KEY",
+            "kimi": "KIMI_API_KEY",
+        }
+        for prov, env_var in _key_env_map.items():
+            env_val = os.environ.get(env_var, "")
+            if env_val:
+                provider_keys[prov] = env_val
+
+        # Resolve active provider
+        provider = os.environ.get(
+            "CD_AGENCY_PROVIDER",
+            file_config.get("provider", "anthropic"),
+        )
+
+        # Resolve API key: provider-specific key takes priority
+        api_key = provider_keys.get(provider, "")
+        if not api_key:
+            # Fallback to ANTHROPIC_API_KEY for backward compat
+            api_key = os.environ.get("ANTHROPIC_API_KEY", file_config.get("api_key", ""))
+
         return cls(
-            api_key=os.environ.get(
-                "ANTHROPIC_API_KEY",
-                file_config.get("api_key", ""),
-            ),
+            api_key=api_key,
             model=os.environ.get(
                 "CD_AGENCY_MODEL",
                 file_config.get("model", "claude-sonnet-4-20250514"),
@@ -158,6 +185,12 @@ class Config:
             brand_voice_guide=file_config.get("brand_voice_guide", ""),
             output_format=file_config.get("output_format", "text"),
             product_context=product_context,
+            provider=provider,
+            provider_keys=provider_keys,
+            base_url=os.environ.get(
+                "CD_AGENCY_BASE_URL",
+                file_config.get("base_url", ""),
+            ),
         )
 
     @staticmethod
@@ -174,8 +207,11 @@ class Config:
     def validate(self) -> list[str]:
         """Return a list of configuration errors, empty if valid."""
         errors = []
-        if not self.api_key:
-            errors.append("ANTHROPIC_API_KEY is not set")
+        if not self.api_key and self.provider != "ollama":
+            errors.append(
+                f"API key is not set for provider '{self.provider}'. "
+                f"Set it via environment variable or config file."
+            )
         if not self.agents_dir.exists():
             errors.append(f"Agents directory not found: {self.agents_dir}")
         return errors

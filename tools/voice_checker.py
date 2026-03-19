@@ -106,22 +106,26 @@ class VoiceResult:
 class VoiceChecker:
     """Checks content against a brand voice profile using LLM."""
 
-    def __init__(self, client=None, model: str = "claude-sonnet-4-20250514"):
-        """Initialize with an Anthropic client.
+    def __init__(
+        self,
+        client=None,
+        model: str = "claude-sonnet-4-20250514",
+        provider: str = "anthropic",
+        api_key: str = "",
+    ):
+        """Initialize the voice checker.
 
         Args:
-            client: An anthropic.Anthropic client instance. If None, creates one.
+            client: A pre-configured client instance (legacy support). If None,
+                    uses the provider abstraction.
             model: Model to use for voice checking.
+            provider: LLM provider name (e.g. "anthropic", "openai").
+            api_key: API key for the provider.
         """
         self._client = client
         self._model = model
-
-    @property
-    def client(self):
-        if self._client is None:
-            import anthropic
-            self._client = anthropic.Anthropic()
-        return self._client
+        self._provider = provider
+        self._api_key = api_key
 
     def check(self, text: str, profile: VoiceProfile) -> VoiceResult:
         """Check text against a voice profile using LLM.
@@ -151,14 +155,33 @@ class VoiceChecker:
             "Return JSON only, no other text."
         )
 
-        response = self.client.messages.create(
+        # Use legacy client if provided, otherwise use provider abstraction
+        if self._client is not None:
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=1024,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+            return self._parse_response(response.content[0].text)
+
+        from runtime.providers import create_completion
+
+        api_key = self._api_key
+        if not api_key and self._provider == "anthropic":
+            import os
+            api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+
+        result = create_completion(
+            provider_name=self._provider,
+            api_key=api_key,
             model=self._model,
-            max_tokens=1024,
             system=system_prompt,
             messages=[{"role": "user", "content": user_message}],
+            max_tokens=1024,
+            temperature=0.7,
         )
-
-        return self._parse_response(response.content[0].text)
+        return self._parse_response(result.content)
 
     def _parse_response(self, response_text: str) -> VoiceResult:
         """Parse LLM response into VoiceResult."""

@@ -82,22 +82,51 @@ async def verify_api_key(
 
 async def get_runner_with_user_key(
     x_anthropic_key: Annotated[str | None, Header()] = None,
+    x_llm_key: Annotated[str | None, Header()] = None,
+    x_provider: Annotated[str | None, Header()] = None,
+    x_model: Annotated[str | None, Header()] = None,
+    x_base_url: Annotated[str | None, Header()] = None,
 ) -> AgentRunner:
-    """Create an AgentRunner using the caller's Anthropic API key.
+    """Create an AgentRunner using the caller's LLM API key.
 
-    Priority:
-    1. ``X-Anthropic-Key`` request header (user-provided, per-request)
-    2. Server-side ``ANTHROPIC_API_KEY`` environment variable (fallback)
-    3. 401 if neither is available
+    Priority for provider:
+    1. ``X-Provider`` header
+    2. Server-side ``CD_AGENCY_PROVIDER`` env var
+    3. Default: "anthropic"
+
+    Priority for API key:
+    1. ``X-LLM-Key`` header (multi-provider)
+    2. ``X-Anthropic-Key`` header (backward compat)
+    3. Server-side env var for the active provider
+    4. 401 if no key available (except for ollama)
     """
-    api_key = x_anthropic_key or os.environ.get("ANTHROPIC_API_KEY", "")
+    config = Config.from_env()
 
+    # Resolve provider
+    if x_provider:
+        config.provider = x_provider
+
+    # Resolve API key
+    api_key = x_llm_key or x_anthropic_key or ""
     if not api_key:
+        # Try provider-specific key from config
+        api_key = config.provider_keys.get(config.provider, config.api_key)
+
+    if not api_key and config.provider != "ollama":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Anthropic API key required. Provide via X-Anthropic-Key header.",
+            detail=f"API key required for provider '{config.provider}'. "
+                   f"Provide via X-LLM-Key or X-Anthropic-Key header.",
         )
 
-    config = Config.from_env()
     config.api_key = api_key
+
+    # Override model if specified
+    if x_model:
+        config.model = x_model
+
+    # Override base URL if specified
+    if x_base_url:
+        config.base_url = x_base_url
+
     return AgentRunner(config)

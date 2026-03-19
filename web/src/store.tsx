@@ -7,8 +7,17 @@ import type {
 } from "./types";
 
 interface StoreState {
+  // Multi-provider support
+  provider: string;
+  setProvider: (p: string) => void;
+  providerKeys: Record<string, string>;
+  setProviderKey: (provider: string, key: string) => void;
+  model: string;
+  setModel: (m: string) => void;
+  // Backward-compat alias
   apiKey: string;
   setApiKey: (key: string) => void;
+  // Rest of state
   agents: AgentSummary[];
   setAgents: (agents: AgentSummary[]) => void;
   selectedAgent: AgentSummary | null;
@@ -32,9 +41,24 @@ interface StoreState {
 
 const StoreContext = createContext<StoreState | null>(null);
 
+function loadProviderKeys(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem("cd-agency-provider-keys");
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  // Migrate from old single-key format
+  const legacyKey = localStorage.getItem("cd-agency-api-key");
+  if (legacyKey) return { anthropic: legacyKey };
+  return {};
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [apiKey, setApiKeyState] = useState(
-    () => localStorage.getItem("cd-agency-api-key") || ""
+  const [providerKeys, setProviderKeysState] = useState<Record<string, string>>(loadProviderKeys);
+  const [provider, setProviderState] = useState(
+    () => localStorage.getItem("cd-agency-provider") || "anthropic"
+  );
+  const [model, setModelState] = useState(
+    () => localStorage.getItem("cd-agency-model") || ""
   );
   const [agents, setAgents] = useState<AgentSummary[]>([]);
   const [selectedAgent, selectAgent] = useState<AgentSummary | null>(null);
@@ -46,10 +70,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const setApiKey = useCallback((key: string) => {
-    localStorage.setItem("cd-agency-api-key", key);
-    setApiKeyState(key);
+  const setProvider = useCallback((p: string) => {
+    localStorage.setItem("cd-agency-provider", p);
+    setProviderState(p);
   }, []);
+
+  const setProviderKey = useCallback((prov: string, key: string) => {
+    setProviderKeysState((prev) => {
+      const next = { ...prev, [prov]: key };
+      localStorage.setItem("cd-agency-provider-keys", JSON.stringify(next));
+      // Also keep legacy key for backward compat
+      if (prov === "anthropic") {
+        localStorage.setItem("cd-agency-api-key", key);
+      }
+      return next;
+    });
+  }, []);
+
+  const setModel = useCallback((m: string) => {
+    localStorage.setItem("cd-agency-model", m);
+    setModelState(m);
+  }, []);
+
+  // Backward-compat: apiKey is the key for the active provider
+  const apiKey = providerKeys[provider] || "";
+  const setApiKey = useCallback((key: string) => {
+    setProviderKey(provider, key);
+  }, [provider, setProviderKey]);
 
   const addMessage = useCallback(
     (msg: ConversationMessage) => setMessages((prev) => [...prev, msg]),
@@ -64,6 +111,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <StoreContext.Provider
       value={{
+        provider, setProvider,
+        providerKeys, setProviderKey,
+        model, setModel,
         apiKey, setApiKey,
         agents, setAgents,
         selectedAgent, selectAgent,

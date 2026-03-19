@@ -5,6 +5,7 @@ import type {
   CombinedScore,
   ConversationMessage,
   PresetSummary,
+  ProviderConfig,
   ScrapeResponse,
   VersionEntry,
   WorkflowDetail,
@@ -14,8 +15,18 @@ import type {
 
 const BASE = "/api/v1";
 
-function getApiKey(): string {
-  return localStorage.getItem("cd-agency-api-key") || "";
+function getProviderConfig(): { provider: string; apiKey: string; model: string } {
+  const provider = localStorage.getItem("cd-agency-provider") || "anthropic";
+  let apiKey = "";
+  try {
+    const keys = JSON.parse(localStorage.getItem("cd-agency-provider-keys") || "{}");
+    apiKey = keys[provider] || "";
+  } catch {
+    // Fallback to legacy key
+    apiKey = localStorage.getItem("cd-agency-api-key") || "";
+  }
+  const model = localStorage.getItem("cd-agency-model") || "";
+  return { provider, apiKey, model };
 }
 
 async function request<T>(
@@ -26,8 +37,17 @@ async function request<T>(
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  const key = getApiKey();
-  if (key) headers["X-Anthropic-Key"] = key;
+
+  const { provider, apiKey, model } = getProviderConfig();
+  if (apiKey) {
+    headers["X-LLM-Key"] = apiKey;
+    // Backward compat: also send X-Anthropic-Key when using Anthropic
+    if (provider === "anthropic") {
+      headers["X-Anthropic-Key"] = apiKey;
+    }
+  }
+  if (provider) headers["X-Provider"] = provider;
+  if (model) headers["X-Model"] = model;
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
@@ -107,6 +127,9 @@ export const scrapeUrl = (url: string) =>
     method: "POST",
     body: JSON.stringify({ url }),
   });
+
+// Providers
+export const listProviders = () => request<ProviderConfig[]>("/providers");
 
 // History
 export const listHistory = (count = 20) =>

@@ -68,7 +68,7 @@ class TestAgentRun:
         monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
         result = runner.invoke(main, ["agent", "run", "error", "-i", "test error"])
         assert result.exit_code != 0
-        assert "ANTHROPIC_API_KEY" in result.output
+        assert "API key" in result.output
 
     def test_agent_run_not_found(self, runner, monkeypatch):
         monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
@@ -361,7 +361,7 @@ class TestConfigFile:
         from pathlib import Path
         cfg = Config(api_key="", agents_dir=Path("content-design"))
         errors = cfg.validate()
-        assert any("ANTHROPIC_API_KEY" in e for e in errors)
+        assert any("API key" in e for e in errors)
 
     def test_config_validate_missing_dir(self):
         from runtime.config import Config

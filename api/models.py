@@ -55,6 +55,8 @@ class AgentRunRequest(BaseModel):
 
     input: dict[str, Any] = Field(..., description="Input fields for the agent")
     preset: str | None = Field(None, description="Optional design system preset name")
+    provider: str | None = Field(None, description="LLM provider override (e.g. 'openai', 'gemini')")
+    model: str | None = Field(None, description="Model override (e.g. 'gpt-4o')")
 
 
 class AgentRunResponse(BaseModel):

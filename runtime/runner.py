@@ -1,29 +1,20 @@
-"""Agent runner — executes agents via the Anthropic API."""
+"""Agent runner — executes agents via configurable LLM providers."""
 
 from __future__ import annotations
 
 import time
 from typing import Any
 
-import anthropic
-
 from runtime.agent import Agent, AgentOutput
 from runtime.config import Config
+from runtime.providers import create_completion, create_completion_streaming
 
 
 class AgentRunner:
-    """Executes content design agents via the Anthropic Claude API."""
+    """Executes content design agents via any supported LLM provider."""
 
     def __init__(self, config: Config | None = None) -> None:
         self.config = config or Config.from_env()
-        self._client: anthropic.Anthropic | None = None
-
-    @property
-    def client(self) -> anthropic.Anthropic:
-        """Lazy-initialize the Anthropic client."""
-        if self._client is None:
-            self._client = anthropic.Anthropic(api_key=self.config.api_key)
-        return self._client
 
     def run(
         self,
@@ -50,7 +41,6 @@ class AgentRunner:
 
         Raises:
             ValueError: If required inputs are missing.
-            anthropic.APIError: If the API call fails after retries.
         """
         # Validate input
         errors = agent.validate_input(user_input)
@@ -156,39 +146,33 @@ class AgentRunner:
         for attempt in range(self.config.max_retries):
             try:
                 start = time.monotonic()
-                response = self.client.messages.create(
+                result = create_completion(
+                    provider_name=self.config.provider,
+                    api_key=self.config.api_key,
                     model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
                     system=system_message,
                     messages=[{"role": "user", "content": user_message}],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    base_url=self.config.base_url or None,
                 )
                 elapsed_ms = (time.monotonic() - start) * 1000
 
-                content = ""
-                for block in response.content:
-                    if block.type == "text":
-                        content += block.text
-
                 return AgentOutput(
-                    content=content,
+                    content=result.content,
                     agent_name=agent.name,
                     model=model,
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
                     latency_ms=elapsed_ms,
-                    raw_response=response,
                 )
-            except anthropic.APIStatusError as e:
+            except Exception as e:
                 last_error = e
                 # Don't retry on client errors (4xx) except rate limits (429)
-                if e.status_code != 429 and 400 <= e.status_code < 500:
+                status_code = getattr(e, "status_code", None)
+                if status_code and status_code != 429 and 400 <= status_code < 500:
                     raise
                 # Exponential backoff for retryable errors
-                if attempt < self.config.max_retries - 1:
-                    time.sleep(2 ** attempt)
-            except anthropic.APIConnectionError as e:
-                last_error = e
                 if attempt < self.config.max_retries - 1:
                     time.sleep(2 ** attempt)
 
@@ -206,32 +190,27 @@ class AgentRunner:
         """Execute a streaming API call, collecting the full response."""
         start = time.monotonic()
 
-        with self.client.messages.stream(
+        result = create_completion_streaming(
+            provider_name=self.config.provider,
+            api_key=self.config.api_key,
             model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
             system=system_message,
             messages=[{"role": "user", "content": user_message}],
-        ) as stream:
-            response = stream.get_final_message()
+            max_tokens=max_tokens,
+            temperature=temperature,
+            base_url=self.config.base_url or None,
+        )
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
-        content = ""
-        for block in response.content:
-            if block.type == "text":
-                content += block.text
-
         return AgentOutput(
-            content=content,
+            content=result.content,
             agent_name=agent.name,
             model=model,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
+            input_tokens=result.input_tokens,
+            output_tokens=result.output_tokens,
             latency_ms=elapsed_ms,
-            raw_response=response,
         )
-
 
     def run_conversation(
         self,
@@ -283,28 +262,25 @@ class AgentRunner:
         for attempt in range(self.config.max_retries):
             try:
                 start = time.monotonic()
-                response = self.client.messages.create(
+                result = create_completion(
+                    provider_name=self.config.provider,
+                    api_key=self.config.api_key,
                     model=resolved_model,
-                    max_tokens=resolved_max_tokens,
-                    temperature=resolved_temperature,
                     system=system_message,
                     messages=messages,
+                    max_tokens=resolved_max_tokens,
+                    temperature=resolved_temperature,
+                    base_url=self.config.base_url or None,
                 )
                 elapsed_ms = (time.monotonic() - start) * 1000
 
-                content = ""
-                for block in response.content:
-                    if block.type == "text":
-                        content += block.text
-
                 output = AgentOutput(
-                    content=content,
+                    content=result.content,
                     agent_name=agent.name,
                     model=resolved_model,
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
+                    input_tokens=result.input_tokens,
+                    output_tokens=result.output_tokens,
                     latency_ms=elapsed_ms,
-                    raw_response=response,
                 )
 
                 # Record analytics
@@ -321,14 +297,11 @@ class AgentRunner:
                     pass
 
                 return output
-            except anthropic.APIStatusError as e:
+            except Exception as e:
                 last_error = e
-                if e.status_code != 429 and 400 <= e.status_code < 500:
+                status_code = getattr(e, "status_code", None)
+                if status_code and status_code != 429 and 400 <= status_code < 500:
                     raise
-                if attempt < self.config.max_retries - 1:
-                    time.sleep(2 ** attempt)
-            except anthropic.APIConnectionError as e:
-                last_error = e
                 if attempt < self.config.max_retries - 1:
                     time.sleep(2 ** attempt)
 

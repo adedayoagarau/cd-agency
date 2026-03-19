@@ -132,3 +132,11 @@ export interface PresetSummary {
 }
 
 export type Tab = "chat" | "form" | "workflow" | "batch" | "history" | "scrape";
+
+export interface ProviderConfig {
+  name: string;
+  label: string;
+  defaultModel: string;
+  models: string[];
+  key_placeholder: string;
+}
