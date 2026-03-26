@@ -5,6 +5,11 @@ color: "#7C4DFF"
 version: "1.0.0"
 difficulty_level: advanced
 tags: ["information-architecture", "content-structure", "entities", "taxonomy", "relationships", "content-systems"]
+tools:
+  - read_file
+  - search_files
+  - remember_context
+  - recall_context
 inputs:
   - name: content_or_context
     type: string

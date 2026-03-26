@@ -61,6 +61,12 @@ class Agent:
     workflow_process: str = ""
     success_metrics: str = ""
 
+    # Preferred model override (e.g. "openai/gpt-4o", "openrouter/meta-llama/llama-3-70b")
+    preferred_model: str = ""
+
+    # Tool names this agent can use (enables LangGraph execution mode)
+    available_tools: list[str] = field(default_factory=list)
+
     # Knowledge references (paths relative to knowledge/ dir, e.g. "foundations/plain-language")
     knowledge_refs: list[str] = field(default_factory=list)
     # Resolved knowledge content (populated by loader)

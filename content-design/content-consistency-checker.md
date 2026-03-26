@@ -5,6 +5,11 @@ color: "#9C27B0"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["consistency", "terminology", "audit", "governance", "patterns", "style-guide"]
+tools:
+  - recall_context
+  - run_linter
+  - check_voice_consistency
+  - extract_brand_patterns
 inputs:
   - name: content
     type: string

@@ -933,6 +933,188 @@ def memory_export(fmt: str) -> None:
         click.echo(output.getvalue())
 
 
+@memory.command("promote")
+@click.argument("key")
+def memory_promote(key: str) -> None:
+    """Promote a project memory entry to workspace level."""
+    from runtime.memory_hierarchy import MemoryHierarchy
+
+    hierarchy = MemoryHierarchy()
+    if hierarchy.promote_to_workspace(key):
+        console.print(f"[green]Promoted '{key}' to workspace memory.[/green]")
+    else:
+        console.print(f"[red]Entry '{key}' not found in project memory.[/red]")
+
+
+@memory.command("import")
+@click.argument("file", type=click.Path(exists=True))
+@click.option("--target", type=click.Choice(["project", "workspace"]), default="project")
+def memory_import(file: str, target: str) -> None:
+    """Import memory entries from a JSON file."""
+    from pathlib import Path
+    from runtime.memory_hierarchy import MemoryHierarchy
+
+    data = json.loads(Path(file).read_text(encoding="utf-8"))
+    hierarchy = MemoryHierarchy()
+    count = hierarchy.import_memory(data, target=target)
+    console.print(f"[green]Imported {count} entries to {target} memory.[/green]")
+
+
+@memory.command("prune")
+@click.option("--max-age-days", default=90, type=int, help="Remove entries older than N days")
+@click.option("--dry-run", is_flag=True, help="Show what would be removed without deleting")
+def memory_prune(max_age_days: int, dry_run: bool) -> None:
+    """Prune old memory entries across all tiers."""
+    from runtime.memory_hierarchy import MemoryHierarchy
+
+    hierarchy = MemoryHierarchy()
+    result = hierarchy.prune(max_age_days=max_age_days, dry_run=dry_run)
+
+    label = "[dim](dry run)[/dim] " if dry_run else ""
+    console.print(f"{label}Project: {result['project']} entries")
+    console.print(f"{label}Workspace: {result['workspace']} entries")
+    console.print(f"{label}Sessions: {result['sessions']} cleaned")
+
+
+# --- Session commands ---
+
+@main.group()
+def session() -> None:
+    """Manage CLI sessions."""
+    pass
+
+
+@session.command("list")
+def session_list() -> None:
+    """List recent sessions."""
+    from runtime.session_memory import SessionMemory
+
+    sessions = SessionMemory.list_sessions()
+    if not sessions:
+        console.print("[dim]No sessions found.[/dim]")
+        return
+
+    import datetime
+    table = Table(title="Recent Sessions")
+    table.add_column("Session ID", style="cyan", max_width=12)
+    table.add_column("Project")
+    table.add_column("Last Active")
+    table.add_column("Interactions", justify="right")
+
+    for s in sessions:
+        ts = s.get("last_activity", 0)
+        when = datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else "?"
+        project = s.get("project_path", "")
+        if project:
+            from pathlib import Path as _P
+            project = _P(project).name
+        table.add_row(
+            s["session_id"][:12],
+            project,
+            when,
+            str(s.get("interactions", 0)),
+        )
+    console.print(table)
+
+
+@session.command("resume")
+@click.argument("session_id")
+def session_resume(session_id: str) -> None:
+    """Resume a previous session."""
+    from runtime.session_memory import SessionMemory
+
+    sm = SessionMemory(session_id=session_id)
+    ctx = sm.context
+    console.print(f"[green]Resumed session {ctx.session_id[:12]}[/green]")
+    console.print(f"  Project: {ctx.project_path}")
+    console.print(f"  Interactions: {ctx.agent_interactions}")
+    if ctx.active_topics:
+        console.print(f"  Topics: {', '.join(ctx.active_topics[-5:])}")
+
+
+@session.command("cleanup")
+@click.option("--max-age-days", default=7, type=int)
+def session_cleanup(max_age_days: int) -> None:
+    """Remove expired sessions."""
+    from runtime.session_memory import SessionMemory
+
+    count = SessionMemory.cleanup_old_sessions(max_age_days=max_age_days)
+    console.print(f"[green]Cleaned up {count} expired sessions.[/green]")
+
+
+# --- Workspace commands ---
+
+@main.group()
+def workspace() -> None:
+    """Manage workspace-level shared memory."""
+    pass
+
+
+@workspace.command("status")
+def workspace_status() -> None:
+    """Show workspace memory statistics."""
+    from runtime.workspace_memory import WorkspaceMemory
+
+    ws = WorkspaceMemory.load()
+    categories: dict[str, int] = {}
+    for e in ws.entries.values():
+        categories[e.category] = categories.get(e.category, 0) + 1
+
+    console.print(f"\n[bold]Workspace Memory[/bold]")
+    console.print(f"  Entries: {len(ws)}")
+    if categories:
+        console.print(f"  Categories:")
+        for cat, count in sorted(categories.items()):
+            console.print(f"    {cat}: {count}")
+
+    if ws.memory_file.exists():
+        size_kb = ws.memory_file.stat().st_size / 1024
+        console.print(f"  File size: {size_kb:.1f} KB")
+
+
+@workspace.command("sync")
+def workspace_sync() -> None:
+    """Sync eligible project memory to workspace."""
+    from runtime.memory_hierarchy import MemoryHierarchy
+
+    hierarchy = MemoryHierarchy()
+    count = hierarchy.sync_to_workspace()
+    console.print(f"[green]Synced {count} entries to workspace memory.[/green]")
+
+
+@workspace.command("show")
+@click.option("--json-output", "as_json", is_flag=True)
+def workspace_show(as_json: bool) -> None:
+    """Show workspace memory entries."""
+    from runtime.workspace_memory import WorkspaceMemory
+
+    ws = WorkspaceMemory.load()
+    if not ws.entries:
+        console.print("[dim]No workspace memory stored yet.[/dim]")
+        return
+
+    if as_json:
+        from dataclasses import asdict
+        data = {k: asdict(v) for k, v in ws.entries.items()}
+        click.echo(json.dumps(data, indent=2))
+        return
+
+    table = Table(title=f"Workspace Memory ({len(ws)} entries)")
+    table.add_column("Key", style="cyan")
+    table.add_column("Value")
+    table.add_column("Category", style="dim")
+    table.add_column("Source", style="dim")
+
+    for e in ws.entries.values():
+        source = e.metadata.get("source_project", "")
+        if source:
+            from pathlib import Path as _P
+            source = _P(source).name
+        table.add_row(e.key, e.value[:80], e.category, source)
+
+    console.print(table)
+
+
 # --- History (versioning) commands ---
 
 @main.group()
@@ -1582,6 +1764,153 @@ def interactive_mode() -> None:
             if related:
                 console.print(f"\n[bold cyan]Handing off to: {related.name}[/bold cyan]")
                 console.print(f"[dim]Run: cd-agency agent run {related.slug} -i \"{result.content[:50]}...\"[/dim]")
+
+
+# --- Brand DNA commands ---
+
+@main.group()
+def brand() -> None:
+    """Manage brand voice DNA — learn, view, and apply brand voice patterns."""
+    pass
+
+
+@brand.command("ingest")
+@click.option("--file", "-f", "content_file", type=click.Path(exists=True), help="File to ingest (text, markdown, or YAML)")
+@click.option("--text", "-t", "content_text", help="Content text to analyze")
+@click.option("--name", "-n", "brand_name", default="", help="Brand name for the profile")
+@click.option("--model", "-m", help="Override the default model")
+def brand_ingest(content_file: str | None, content_text: str | None, brand_name: str, model: str | None) -> None:
+    """Ingest content samples to learn brand voice DNA."""
+    from pathlib import Path
+    from runtime.brand_dna import BrandDNAProcessor, load_brand_dna, save_brand_dna
+
+    if not content_file and not content_text:
+        console.print("[red]Provide --file or --text with content to analyze.[/red]")
+        raise SystemExit(1)
+
+    config = Config.from_env()
+    from runtime.model_providers import ModelRouter
+    router = ModelRouter.from_config(config)
+    resolved_model = model or config.model
+
+    processor = BrandDNAProcessor(model_router=router, model=resolved_model)
+
+    with console.status("[bold cyan]Analyzing brand content..."):
+        if content_file:
+            new_dna = processor.ingest_file(Path(content_file), brand_name=brand_name)
+        else:
+            new_dna = processor.ingest([content_text], brand_name=brand_name)
+
+    if new_dna.is_empty():
+        console.print("[yellow]Could not extract any brand patterns from the content.[/yellow]")
+        return
+
+    # Merge with existing
+    existing = load_brand_dna()
+    existing.merge(new_dna)
+    if brand_name:
+        existing.name = brand_name
+    save_brand_dna(existing)
+
+    console.print(f"\n[bold green]Brand DNA updated![/bold green]")
+    if new_dna.tone_descriptors:
+        console.print(f"[cyan]Tone:[/cyan] {', '.join(new_dna.tone_descriptors)}")
+    console.print(f"[cyan]Voice patterns:[/cyan] {len(new_dna.voice_patterns)}")
+    console.print(f"[cyan]Terminology entries:[/cyan] {len(new_dna.terminology)}")
+    console.print(f"[cyan]Style rules:[/cyan] {len(new_dna.style_rules)}")
+    console.print(f"\n[dim]Total stored: {len(existing.voice_patterns)} patterns, "
+                  f"{len(existing.terminology)} terms, {len(existing.style_rules)} rules[/dim]")
+
+
+@brand.command("show")
+@click.option("--json-output", "as_json", is_flag=True, help="Output as JSON")
+def brand_show(as_json: bool) -> None:
+    """Show the current brand voice DNA."""
+    from runtime.brand_dna import load_brand_dna
+
+    dna = load_brand_dna()
+    if dna.is_empty():
+        console.print("[yellow]No brand DNA stored yet. Use 'cd-agency brand ingest' to learn from content.[/yellow]")
+        return
+
+    if as_json:
+        console.print(json.dumps(dna.to_dict(), indent=2))
+        return
+
+    console.print(f"\n[bold]Brand Voice DNA{' — ' + dna.name if dna.name else ''}[/bold]")
+    console.print(f"[dim]Samples analyzed: {dna.source_samples}[/dim]\n")
+
+    if dna.tone_descriptors:
+        console.print(f"[bold cyan]Tone:[/bold cyan] {', '.join(dna.tone_descriptors)}\n")
+
+    if dna.voice_patterns:
+        console.print("[bold cyan]Voice Patterns:[/bold cyan]")
+        for vp in dna.voice_patterns:
+            console.print(f"  [green]{vp.name}[/green]: {vp.description}")
+            if vp.examples:
+                for ex in vp.examples[:2]:
+                    console.print(f"    [dim]e.g. \"{ex}\"[/dim]")
+        console.print()
+
+    if dna.terminology:
+        console.print("[bold cyan]Terminology:[/bold cyan]")
+        table = Table(show_header=True, header_style="bold")
+        table.add_column("Preferred")
+        table.add_column("Avoid")
+        table.add_column("Context")
+        for te in dna.terminology:
+            table.add_row(te.preferred, ", ".join(te.avoid), te.context)
+        console.print(table)
+        console.print()
+
+    if dna.style_rules:
+        console.print("[bold cyan]Style Rules:[/bold cyan]")
+        for sr in dna.style_rules:
+            cat = f"[dim][{sr.category}][/dim] " if sr.category else ""
+            console.print(f"  {cat}{sr.rule}")
+        console.print()
+
+    if dna.do_list:
+        console.print("[bold green]Do:[/bold green]")
+        for d in dna.do_list:
+            console.print(f"  [green]+[/green] {d}")
+
+    if dna.dont_list:
+        console.print("[bold red]Don't:[/bold red]")
+        for d in dna.dont_list:
+            console.print(f"  [red]-[/red] {d}")
+
+
+@brand.command("export")
+@click.option("--format", "-f", "fmt", type=click.Choice(["json", "yaml", "prompt"]), default="prompt")
+def brand_export(fmt: str) -> None:
+    """Export brand DNA in various formats."""
+    from runtime.brand_dna import load_brand_dna
+
+    dna = load_brand_dna()
+    if dna.is_empty():
+        console.print("[yellow]No brand DNA to export.[/yellow]")
+        return
+
+    if fmt == "json":
+        console.print(json.dumps(dna.to_dict(), indent=2))
+    elif fmt == "yaml":
+        import yaml
+        console.print(yaml.dump(dna.to_dict(), default_flow_style=False, sort_keys=False))
+    else:  # prompt
+        console.print(dna.build_context_block())
+
+
+@brand.command("reset")
+@click.confirmation_option(prompt="This will delete all stored brand DNA. Continue?")
+def brand_reset() -> None:
+    """Delete all stored brand DNA."""
+    from runtime.brand_dna import reset_brand_dna
+
+    if reset_brand_dna():
+        console.print("[green]Brand DNA has been reset.[/green]")
+    else:
+        console.print("[yellow]No brand DNA found to reset.[/yellow]")
 
 
 @main.command("studio")

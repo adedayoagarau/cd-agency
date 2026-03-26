@@ -102,6 +102,8 @@ class Config:
     """
 
     api_key: str = ""
+    openai_api_key: str = ""
+    openrouter_api_key: str = ""
     model: str = "claude-sonnet-4-20250514"
     agents_dir: Path = field(default_factory=lambda: Path("content-design"))
     max_tokens: int = 4096
@@ -132,6 +134,14 @@ class Config:
             api_key=os.environ.get(
                 "ANTHROPIC_API_KEY",
                 file_config.get("api_key", ""),
+            ),
+            openai_api_key=os.environ.get(
+                "OPENAI_API_KEY",
+                file_config.get("openai_api_key", ""),
+            ),
+            openrouter_api_key=os.environ.get(
+                "OPENROUTER_API_KEY",
+                file_config.get("openrouter_api_key", ""),
             ),
             model=os.environ.get(
                 "CD_AGENCY_MODEL",
@@ -174,8 +184,11 @@ class Config:
     def validate(self) -> list[str]:
         """Return a list of configuration errors, empty if valid."""
         errors = []
-        if not self.api_key:
-            errors.append("ANTHROPIC_API_KEY is not set")
+        if not any([self.api_key, self.openai_api_key, self.openrouter_api_key]):
+            errors.append(
+                "No LLM API key is set. Set at least one of: "
+                "ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY"
+            )
         if not self.agents_dir.exists():
             errors.append(f"Agents directory not found: {self.agents_dir}")
         return errors

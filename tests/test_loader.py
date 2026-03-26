@@ -87,7 +87,7 @@ class TestLoadAgent:
 class TestLoadAgentsFromDirectory:
     def test_loads_all_15_agents(self):
         agents = load_agents_from_directory(AGENTS_DIR)
-        assert len(agents) == 18
+        assert len(agents) == 19
 
     def test_nonexistent_directory_returns_empty(self):
         agents = load_agents_from_directory(Path("/nonexistent"))

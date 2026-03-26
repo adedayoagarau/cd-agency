@@ -1,29 +1,33 @@
-"""Agent runner — executes agents via the Anthropic API."""
+"""Agent runner — executes agents via pluggable LLM providers."""
 
 from __future__ import annotations
 
 import time
+from pathlib import Path
 from typing import Any
-
-import anthropic
 
 from runtime.agent import Agent, AgentOutput
 from runtime.config import Config
+from runtime.model_providers import ModelRouter, ProviderResponse
 
 
 class AgentRunner:
-    """Executes content design agents via the Anthropic Claude API."""
+    """Executes content design agents via any supported LLM provider.
+
+    Uses ModelRouter to dispatch to Anthropic, OpenAI, or OpenRouter
+    based on the model string. Backward compatible — defaults to Anthropic.
+    """
 
     def __init__(self, config: Config | None = None) -> None:
         self.config = config or Config.from_env()
-        self._client: anthropic.Anthropic | None = None
+        self._router: ModelRouter | None = None
 
     @property
-    def client(self) -> anthropic.Anthropic:
-        """Lazy-initialize the Anthropic client."""
-        if self._client is None:
-            self._client = anthropic.Anthropic(api_key=self.config.api_key)
-        return self._client
+    def router(self) -> ModelRouter:
+        """Lazy-initialize the model router."""
+        if self._router is None:
+            self._router = ModelRouter.from_config(self.config)
+        return self._router
 
     def run(
         self,
@@ -37,6 +41,11 @@ class AgentRunner:
     ) -> AgentOutput:
         """Execute an agent with the given input.
 
+        Model resolution order:
+        1. Explicit `model` parameter
+        2. Agent's `preferred_model` from YAML frontmatter
+        3. Config default (from env/config file)
+
         Args:
             agent: The agent to execute.
             user_input: Dict of input fields matching the agent's input schema.
@@ -49,13 +58,19 @@ class AgentRunner:
             AgentOutput with the agent's response and metadata.
 
         Raises:
-            ValueError: If required inputs are missing.
-            anthropic.APIError: If the API call fails after retries.
+            ValueError: If required inputs are missing or no provider available.
         """
         # Validate input
         errors = agent.validate_input(user_input)
         if errors:
             raise ValueError(f"Input validation failed: {'; '.join(errors)}")
+
+        # Check if this agent should use LangGraph mode
+        if agent.available_tools and not stream:
+            output = self._try_langgraph_run(agent, user_input, model=model,
+                                              max_tokens=max_tokens, temperature=temperature)
+            if output is not None:
+                return output
 
         # Build messages
         system_message = agent.build_system_message()
@@ -72,14 +87,20 @@ class AgentRunner:
             ds_block = design_system.build_context_block()
             system_message = f"{system_message}\n\n---\n\n{ds_block}"
 
-        # Inject project memory if available
-        from runtime.memory import ProjectMemory
-        memory = ProjectMemory.load()
-        # Extract primary input text so memory retrieval is semantic
+        # Inject brand DNA if available
+        from runtime.brand_dna import load_brand_dna
+        brand_dna = load_brand_dna()
+        if not brand_dna.is_empty():
+            brand_block = brand_dna.build_context_block()
+            system_message = f"{system_message}\n\n---\n\n{brand_block}"
+
+        # Inject memory context (session > project > workspace)
+        from runtime.memory_hierarchy import MemoryHierarchy
+        memory_hierarchy = MemoryHierarchy(project_dir=Path("."))
         primary_input = ""
         if agent.inputs:
             primary_input = str(user_input.get(agent.inputs[0].name, ""))
-        memory_context = memory.get_context_for_agent(
+        memory_context = memory_hierarchy.get_context_for_agent(
             agent.name, query=primary_input
         )
         if memory_context:
@@ -94,27 +115,50 @@ class AgentRunner:
 
         user_message = agent.build_user_message(user_input)
 
-        # Resolve parameters
-        resolved_model = model or self.config.model
+        # Resolve parameters — model priority: explicit > agent preferred > config
+        resolved_model = model or agent.preferred_model or self.config.model
         resolved_max_tokens = max_tokens or self.config.max_tokens
         resolved_temperature = temperature if temperature is not None else self.config.temperature
 
+        messages = [{"role": "user", "content": user_message}]
+
+        start = time.monotonic()
+        provider, bare_model = self.router.resolve(resolved_model)
+
         if stream:
-            output = self._run_streaming(
-                agent, system_message, user_message,
-                resolved_model, resolved_max_tokens, resolved_temperature,
+            response = provider.stream(
+                model=bare_model,
+                system=system_message,
+                messages=messages,
+                max_tokens=resolved_max_tokens,
+                temperature=resolved_temperature,
             )
         else:
-            output = self._run_sync(
-                agent, system_message, user_message,
-                resolved_model, resolved_max_tokens, resolved_temperature,
+            response = provider.complete(
+                model=bare_model,
+                system=system_message,
+                messages=messages,
+                max_tokens=resolved_max_tokens,
+                temperature=resolved_temperature,
+                max_retries=self.config.max_retries,
             )
+
+        elapsed_ms = (time.monotonic() - start) * 1000
+
+        output = AgentOutput(
+            content=response.content,
+            agent_name=agent.name,
+            model=resolved_model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            latency_ms=elapsed_ms,
+            raw_response=response.raw_response,
+        )
 
         # Record content version for history tracking
         try:
             from runtime.versioning import ContentHistory
             history = ContentHistory.load()
-            # Extract primary input text for the "before"
             primary_input = ""
             if agent.inputs:
                 primary_input = str(user_input.get(agent.inputs[0].name, ""))
@@ -147,97 +191,114 @@ class AgentRunner:
 
         return output
 
-    def _run_sync(
+    def _try_langgraph_run(
         self,
         agent: Agent,
-        system_message: str,
-        user_message: str,
-        model: str,
-        max_tokens: int,
-        temperature: float,
-    ) -> AgentOutput:
-        """Execute a synchronous (non-streaming) API call with retry."""
-        last_error: Exception | None = None
+        user_input: dict[str, Any],
+        *,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> AgentOutput | None:
+        """Attempt to run the agent using the LangGraph pipeline.
 
-        for attempt in range(self.config.max_retries):
-            try:
-                start = time.monotonic()
-                response = self.client.messages.create(
-                    model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    system=system_message,
-                    messages=[{"role": "user", "content": user_message}],
-                )
-                elapsed_ms = (time.monotonic() - start) * 1000
+        Returns None if langgraph is not installed, allowing fallback
+        to the direct LLM call path.
+        """
+        try:
+            from runtime.langgraph_agent import ContentDesignGraph, langgraph_available
+        except ImportError:
+            return None
 
-                content = ""
-                for block in response.content:
-                    if block.type == "text":
-                        content += block.text
+        if not langgraph_available():
+            return None
 
-                return AgentOutput(
-                    content=content,
-                    agent_name=agent.name,
-                    model=model,
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
-                    latency_ms=elapsed_ms,
-                    raw_response=response,
-                )
-            except anthropic.APIStatusError as e:
-                last_error = e
-                # Don't retry on client errors (4xx) except rate limits (429)
-                if e.status_code != 429 and 400 <= e.status_code < 500:
-                    raise
-                # Exponential backoff for retryable errors
-                if attempt < self.config.max_retries - 1:
-                    time.sleep(2 ** attempt)
-            except anthropic.APIConnectionError as e:
-                last_error = e
-                if attempt < self.config.max_retries - 1:
-                    time.sleep(2 ** attempt)
+        from runtime.tools.registry import build_default_registry
+        from runtime.memory import ProjectMemory
 
-        raise last_error  # type: ignore[misc]
+        tool_registry = build_default_registry()
+        tools = tool_registry.get_tools_by_names(agent.available_tools)
+        if not tools:
+            return None
 
-    def _run_streaming(
-        self,
-        agent: Agent,
-        system_message: str,
-        user_message: str,
-        model: str,
-        max_tokens: int,
-        temperature: float,
-    ) -> AgentOutput:
-        """Execute a streaming API call, collecting the full response."""
-        start = time.monotonic()
+        memory = ProjectMemory.load()
 
-        with self.client.messages.stream(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system_message,
-            messages=[{"role": "user", "content": user_message}],
-        ) as stream:
-            response = stream.get_final_message()
+        # Build system message with full context injection
+        system_message = agent.build_system_message()
 
-        elapsed_ms = (time.monotonic() - start) * 1000
+        if self.config.product_context.is_configured():
+            context_block = self.config.product_context.build_context_block()
+            system_message = f"{system_message}\n\n---\n\n{context_block}"
 
-        content = ""
-        for block in response.content:
-            if block.type == "text":
-                content += block.text
+        from runtime.design_system import load_design_system_from_config
+        design_system = load_design_system_from_config()
+        if design_system:
+            ds_block = design_system.build_context_block()
+            system_message = f"{system_message}\n\n---\n\n{ds_block}"
 
-        return AgentOutput(
-            content=content,
-            agent_name=agent.name,
-            model=model,
-            input_tokens=response.usage.input_tokens,
-            output_tokens=response.usage.output_tokens,
-            latency_ms=elapsed_ms,
-            raw_response=response,
+        from runtime.brand_dna import load_brand_dna as _load_brand_dna
+        brand_dna = _load_brand_dna()
+        if not brand_dna.is_empty():
+            brand_block = brand_dna.build_context_block()
+            system_message = f"{system_message}\n\n---\n\n{brand_block}"
+
+        from runtime.preflight import run_preflight, build_assumption_block
+        preflight = run_preflight(agent, user_input)
+        assumption_block = build_assumption_block(preflight)
+        if assumption_block:
+            system_message = f"{system_message}\n\n---\n\n{assumption_block}"
+
+        resolved_model = model or agent.preferred_model or self.config.model
+        resolved_max_tokens = max_tokens or self.config.max_tokens
+        resolved_temperature = temperature if temperature is not None else self.config.temperature
+
+        graph = ContentDesignGraph(
+            agent=agent,
+            tools=tools,
+            model_router=self.router,
+            memory=memory,
+            model=resolved_model,
+            max_tokens=resolved_max_tokens,
+            temperature=resolved_temperature,
+            max_retries=self.config.max_retries,
         )
 
+        output = graph.run(user_input, system_message)
+
+        # Record versioning and analytics
+        try:
+            from runtime.versioning import ContentHistory
+            history = ContentHistory.load()
+            primary_input = ""
+            if agent.inputs:
+                primary_input = str(user_input.get(agent.inputs[0].name, ""))
+            history.record(
+                agent_name=agent.name,
+                agent_slug=agent.slug,
+                input_text=primary_input,
+                output_text=output.content,
+                input_fields={k: str(v) for k, v in user_input.items()},
+                model=output.model,
+                input_tokens=output.input_tokens,
+                output_tokens=output.output_tokens,
+                latency_ms=output.latency_ms,
+            )
+        except Exception:
+            pass
+
+        try:
+            from tools.analytics import Analytics
+            analytics = Analytics.load()
+            analytics.record_agent_run(
+                agent_name=agent.name,
+                input_tokens=output.input_tokens,
+                output_tokens=output.output_tokens,
+                latency_ms=output.latency_ms,
+            )
+        except Exception:
+            pass
+
+        return output
 
     def run_conversation(
         self,
@@ -273,80 +334,62 @@ class AgentRunner:
             ds_block = design_system.build_context_block()
             system_message = f"{system_message}\n\n---\n\n{ds_block}"
 
-        from runtime.memory import ProjectMemory
-        memory = ProjectMemory.load()
-        # Extract query from the last user message for semantic retrieval
+        from runtime.memory_hierarchy import MemoryHierarchy
+        memory_hierarchy = MemoryHierarchy(project_dir=Path("."))
         conversation_query = ""
         for msg in reversed(messages):
             if msg.get("role") == "user":
                 conversation_query = str(msg.get("content", ""))
                 break
-        memory_context = memory.get_context_for_agent(
+        memory_context = memory_hierarchy.get_context_for_agent(
             agent.name, query=conversation_query
         )
         if memory_context:
             system_message = f"{system_message}\n\n---\n\n{memory_context}"
 
         # Resolve parameters
-        resolved_model = model or self.config.model
+        resolved_model = model or agent.preferred_model or self.config.model
         resolved_max_tokens = max_tokens or self.config.max_tokens
         resolved_temperature = temperature if temperature is not None else self.config.temperature
 
-        # Make multi-turn API call
-        last_error: Exception | None = None
-        for attempt in range(self.config.max_retries):
-            try:
-                start = time.monotonic()
-                response = self.client.messages.create(
-                    model=resolved_model,
-                    max_tokens=resolved_max_tokens,
-                    temperature=resolved_temperature,
-                    system=system_message,
-                    messages=messages,
-                )
-                elapsed_ms = (time.monotonic() - start) * 1000
+        start = time.monotonic()
+        provider, bare_model = self.router.resolve(resolved_model)
 
-                content = ""
-                for block in response.content:
-                    if block.type == "text":
-                        content += block.text
+        response = provider.complete(
+            model=bare_model,
+            system=system_message,
+            messages=messages,
+            max_tokens=resolved_max_tokens,
+            temperature=resolved_temperature,
+            max_retries=self.config.max_retries,
+        )
 
-                output = AgentOutput(
-                    content=content,
-                    agent_name=agent.name,
-                    model=resolved_model,
-                    input_tokens=response.usage.input_tokens,
-                    output_tokens=response.usage.output_tokens,
-                    latency_ms=elapsed_ms,
-                    raw_response=response,
-                )
+        elapsed_ms = (time.monotonic() - start) * 1000
 
-                # Record analytics
-                try:
-                    from tools.analytics import Analytics
-                    analytics = Analytics.load()
-                    analytics.record_agent_run(
-                        agent_name=agent.name,
-                        input_tokens=output.input_tokens,
-                        output_tokens=output.output_tokens,
-                        latency_ms=output.latency_ms,
-                    )
-                except Exception:
-                    pass
+        output = AgentOutput(
+            content=response.content,
+            agent_name=agent.name,
+            model=resolved_model,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            latency_ms=elapsed_ms,
+            raw_response=response.raw_response,
+        )
 
-                return output
-            except anthropic.APIStatusError as e:
-                last_error = e
-                if e.status_code != 429 and 400 <= e.status_code < 500:
-                    raise
-                if attempt < self.config.max_retries - 1:
-                    time.sleep(2 ** attempt)
-            except anthropic.APIConnectionError as e:
-                last_error = e
-                if attempt < self.config.max_retries - 1:
-                    time.sleep(2 ** attempt)
+        # Record analytics
+        try:
+            from tools.analytics import Analytics
+            analytics = Analytics.load()
+            analytics.record_agent_run(
+                agent_name=agent.name,
+                input_tokens=output.input_tokens,
+                output_tokens=output.output_tokens,
+                latency_ms=output.latency_ms,
+            )
+        except Exception:
+            pass
 
-        raise last_error  # type: ignore[misc]
+        return output
 
 
 def run_agent(

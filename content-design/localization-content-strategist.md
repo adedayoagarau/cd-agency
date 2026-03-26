@@ -5,6 +5,10 @@ color: "#9C27B0"
 version: "1.0.0"
 difficulty_level: advanced
 tags: ["localization", "l10n", "i18n", "translation", "globalization", "cultural-adaptation"]
+tools:
+  - run_linter
+  - score_readability
+  - check_voice_consistency
 inputs:
   - name: content
     type: string

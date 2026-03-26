@@ -5,6 +5,10 @@ color: "#673AB7"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["tone", "voice", "brand", "emotion", "style", "consistency"]
+tools:
+  - check_voice_consistency
+  - recall_brand_voice
+  - extract_brand_patterns
 inputs:
   - name: content
     type: string

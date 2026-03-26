@@ -5,6 +5,10 @@ color: "#FFEB3B"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["microcopy", "buttons", "tooltips", "forms", "labels", "review", "refinement"]
+tools:
+  - run_linter
+  - check_voice_consistency
+  - score_readability
 inputs:
   - name: microcopy
     type: string

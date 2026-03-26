@@ -1,0 +1,19 @@
+# User-configurable quality thresholds for agent self-evaluation.
+#
+# Override default evaluation profile thresholds per agent or globally.
+# Agents not listed here use built-in defaults from evaluation_profiles.py.
+#
+# Available metrics:
+#   composite_score  — weighted score across all metrics (0–100)
+#   readability_min  — minimum Flesch Reading Ease score
+#   accessibility_min — minimum accessibility score
+#   voice_min        — minimum voice consistency score
+#
+# Example:
+#   cta-optimization-specialist:
+#     composite_score: 85
+#     readability_min: 70
+
+global:
+  composite_score: 75
+  readability_min: 65

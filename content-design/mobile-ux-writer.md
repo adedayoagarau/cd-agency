@@ -5,6 +5,10 @@ color: "#8BC34A"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["mobile", "app", "push-notifications", "ios", "android", "responsive", "touch"]
+tools:
+  - score_readability
+  - check_accessibility
+  - run_linter
 inputs:
   - name: content
     type: string

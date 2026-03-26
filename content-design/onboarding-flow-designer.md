@@ -5,6 +5,11 @@ color: "#4CAF50"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["onboarding", "activation", "retention", "welcome", "first-run", "progressive-disclosure"]
+tools:
+  - score_readability
+  - check_accessibility
+  - remember_context
+  - recall_context
 inputs:
   - name: product_description
     type: string

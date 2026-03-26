@@ -5,6 +5,11 @@ color: "#FFEB3B"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["accessibility", "a11y", "wcag", "inclusive-language", "plain-language", "screen-reader"]
+tools:
+  - check_accessibility
+  - score_readability
+  - run_linter
+  - read_file
 inputs:
   - name: content
     type: string

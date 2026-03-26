@@ -5,6 +5,12 @@ color: "#2196F3"
 version: "1.0.0"
 difficulty_level: advanced
 tags: ["documentation", "api-docs", "sdk", "developer", "technical-writing", "code-examples"]
+tools:
+  - read_file
+  - write_file
+  - search_files
+  - run_linter
+  - score_readability
 inputs:
   - name: technical_input
     type: string

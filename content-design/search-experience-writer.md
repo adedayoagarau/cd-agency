@@ -5,6 +5,10 @@ color: "#795548"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["search", "filters", "no-results", "autocomplete", "discoverability", "facets"]
+tools:
+  - score_readability
+  - run_linter
+  - check_voice_consistency
 inputs:
   - name: search_context
     type: string

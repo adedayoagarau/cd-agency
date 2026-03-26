@@ -5,6 +5,10 @@ color: "#FF5722"
 version: "1.0.0"
 difficulty_level: beginner
 tags: ["empty-state", "placeholder", "loading", "first-run", "zero-state", "onboarding"]
+tools:
+  - score_readability
+  - check_voice_consistency
+  - run_linter
 inputs:
   - name: empty_state_type
     type: string

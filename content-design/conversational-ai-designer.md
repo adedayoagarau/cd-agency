@@ -5,6 +5,11 @@ color: "#4FC3F7"
 version: "1.0.0"
 difficulty_level: advanced
 tags: ["chatbot", "voice-ui", "dialogue", "conversation", "ivr", "persona"]
+tools:
+  - run_linter
+  - score_readability
+  - check_voice_consistency
+  - recall_brand_voice
 inputs:
   - name: use_case
     type: string

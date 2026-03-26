@@ -5,6 +5,13 @@ color: "#F44336"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["errors", "error-messages", "recovery", "troubleshooting", "validation"]
+tools:
+  - run_linter
+  - score_readability
+  - check_accessibility
+  - read_file
+  - recall_context
+  - remember_context
 inputs:
   - name: error_scenario
     type: string

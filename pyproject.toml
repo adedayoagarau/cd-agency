@@ -68,6 +68,13 @@ web = [
     "beautifulsoup4>=4.12.0",
     "lxml>=5.0.0",
 ]
+multi-model = [
+    "openai>=1.3.0",
+]
+langgraph = [
+    "langgraph>=0.2.0",
+    "langchain-core>=0.3.0",
+]
 vectors = [
     "chromadb>=0.4.18",
     "sentence-transformers>=2.2.2",

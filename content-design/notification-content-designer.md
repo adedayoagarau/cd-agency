@@ -5,6 +5,10 @@ color: "#FFC107"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["notifications", "push", "email", "in-app", "alerts", "engagement"]
+tools:
+  - score_readability
+  - run_linter
+  - check_accessibility
 inputs:
   - name: trigger_event
     type: string

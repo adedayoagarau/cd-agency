@@ -5,6 +5,10 @@ color: "#607D8B"
 version: "1.0.0"
 difficulty_level: advanced
 tags: ["privacy", "legal", "gdpr", "consent", "terms-of-service", "plain-language", "compliance"]
+tools:
+  - run_linter
+  - score_readability
+  - check_accessibility
 inputs:
   - name: legal_text
     type: string

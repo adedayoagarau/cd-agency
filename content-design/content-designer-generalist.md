@@ -5,6 +5,13 @@ color: "#8BC34A"
 version: "1.0.0"
 difficulty_level: beginner
 tags: ["ux-writing", "microcopy", "content-strategy", "brand-voice", "general"]
+tools:
+  - run_linter
+  - score_readability
+  - check_accessibility
+  - check_voice_consistency
+  - remember_context
+  - recall_context
 inputs:
   - name: content_or_context
     type: string

@@ -5,6 +5,10 @@ color: "#FF9800"
 version: "1.0.0"
 difficulty_level: intermediate
 tags: ["cta", "conversion", "buttons", "persuasion", "a-b-testing", "landing-pages"]
+tools:
+  - run_linter
+  - check_voice_consistency
+  - score_readability
 inputs:
   - name: current_cta
     type: string
