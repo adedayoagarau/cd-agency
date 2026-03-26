@@ -35,14 +35,34 @@ class MemoryEntry:
 
 @dataclass
 class ProjectMemory:
-    """Project-scoped memory store backed by a JSON file."""
+    """Project-scoped memory store backed by a JSON file.
+
+    When ``chromadb`` and ``sentence-transformers`` are installed, a
+    :class:`~runtime.vector_memory.VectorMemory` is used alongside the
+    JSON file to provide semantic search.  The JSON file remains the
+    canonical store; vectors are an acceleration layer.
+    """
 
     entries: dict[str, MemoryEntry] = field(default_factory=dict)
     project_dir: Path = field(default_factory=lambda: Path("."))
+    _vector: Any = field(default=None, repr=False)
 
     @property
     def memory_path(self) -> Path:
         return self.project_dir / MEMORY_DIR / MEMORY_FILE
+
+    @property
+    def vector(self) -> Any:
+        """Lazy-initialize VectorMemory. Returns ``None`` if deps missing."""
+        if self._vector is None:
+            try:
+                from runtime.vector_memory import VectorMemory
+
+                self._vector = VectorMemory(self.project_dir)
+            except Exception:
+                # chromadb or sentence-transformers not installed
+                self._vector = False  # sentinel: tried and failed
+        return self._vector if self._vector is not False else None
 
     @classmethod
     def load(cls, project_dir: Path | None = None) -> ProjectMemory:
@@ -53,6 +73,15 @@ class ProjectMemory:
             data = json.loads(memory.memory_path.read_text(encoding="utf-8"))
             for key, entry_data in data.get("entries", {}).items():
                 memory.entries[key] = MemoryEntry(**entry_data)
+            # Auto-migrate JSON entries into vector store if it's empty
+            if memory.entries and memory.vector is not None:
+                if memory.vector.count() == 0:
+                    try:
+                        from runtime.vector_memory import migrate_json_to_vectors
+
+                        migrate_json_to_vectors(project_dir)
+                    except Exception:
+                        pass
         return memory
 
     def save(self) -> None:
@@ -75,7 +104,7 @@ class ProjectMemory:
         source_agent: str = "",
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        """Store a memory entry."""
+        """Store a memory entry in JSON and (if available) the vector store."""
         self.entries[key] = MemoryEntry(
             key=key,
             value=value,
@@ -84,6 +113,18 @@ class ProjectMemory:
             metadata=metadata or {},
         )
         self.save()
+
+        if self.vector is not None:
+            try:
+                self.vector.remember(
+                    key=key,
+                    value=value,
+                    category=category,
+                    source_agent=source_agent,
+                    metadata=metadata,
+                )
+            except Exception:
+                pass  # Vector store should never break core memory
 
     def recall(self, key: str) -> MemoryEntry | None:
         """Retrieve a specific memory by key."""
@@ -94,7 +135,20 @@ class ProjectMemory:
         return [e for e in self.entries.values() if e.category == category]
 
     def search(self, query: str) -> list[MemoryEntry]:
-        """Search memories by key or value substring."""
+        """Search memories — semantic when available, substring fallback.
+
+        Uses semantic search if the vector store is available and returns
+        results. Always falls back to substring matching when semantic
+        search is empty or unavailable (e.g. model not downloaded).
+        """
+        if self.vector is not None:
+            try:
+                results = self.vector.semantic_search(query)
+                if results:
+                    return results
+            except Exception:
+                pass
+        # Fallback: substring matching
         query_lower = query.lower()
         return [
             e for e in self.entries.values()
@@ -102,10 +156,15 @@ class ProjectMemory:
         ]
 
     def forget(self, key: str) -> bool:
-        """Remove a memory entry."""
+        """Remove a memory entry from JSON and vector store."""
         if key in self.entries:
             del self.entries[key]
             self.save()
+            if self.vector is not None:
+                try:
+                    self.vector.forget(key)
+                except Exception:
+                    pass
             return True
         return False
 
@@ -116,8 +175,24 @@ class ProjectMemory:
         self.save()
         return count
 
-    def get_context_for_agent(self, agent_name: str = "") -> str:
-        """Build a context string from memory for use in agent prompts."""
+    def get_context_for_agent(
+        self, agent_name: str = "", query: str = ""
+    ) -> str:
+        """Build a context string from memory for use in agent prompts.
+
+        When *query* is supplied and a vector store is available, returns
+        semantically relevant entries instead of dumping all categories.
+        """
+        # Semantic path — when we have both a query and vector store
+        if query and self.vector is not None:
+            try:
+                return self.vector.get_context_for_agent(
+                    agent_name=agent_name, query=query
+                )
+            except Exception:
+                pass  # Fall through to category-based path
+
+        # Category-based path (original behaviour / fallback)
         if not self.entries:
             return ""
 
