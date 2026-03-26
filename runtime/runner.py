@@ -75,7 +75,13 @@ class AgentRunner:
         # Inject project memory if available
         from runtime.memory import ProjectMemory
         memory = ProjectMemory.load()
-        memory_context = memory.get_context_for_agent(agent.name)
+        # Extract primary input text so memory retrieval is semantic
+        primary_input = ""
+        if agent.inputs:
+            primary_input = str(user_input.get(agent.inputs[0].name, ""))
+        memory_context = memory.get_context_for_agent(
+            agent.name, query=primary_input
+        )
         if memory_context:
             system_message = f"{system_message}\n\n---\n\n{memory_context}"
 
@@ -269,7 +275,15 @@ class AgentRunner:
 
         from runtime.memory import ProjectMemory
         memory = ProjectMemory.load()
-        memory_context = memory.get_context_for_agent(agent.name)
+        # Extract query from the last user message for semantic retrieval
+        conversation_query = ""
+        for msg in reversed(messages):
+            if msg.get("role") == "user":
+                conversation_query = str(msg.get("content", ""))
+                break
+        memory_context = memory.get_context_for_agent(
+            agent.name, query=conversation_query
+        )
         if memory_context:
             system_message = f"{system_message}\n\n---\n\n{memory_context}"
 

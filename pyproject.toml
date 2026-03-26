@@ -68,6 +68,10 @@ web = [
     "beautifulsoup4>=4.12.0",
     "lxml>=5.0.0",
 ]
+vectors = [
+    "chromadb>=0.4.18",
+    "sentence-transformers>=2.2.2",
+]
 
 [project.scripts]
 cd-agency = "runtime.cli:main"
