@@ -28,6 +28,12 @@ class AgentOutput:
     latency_ms: float = 0.0
     raw_response: Any = None
 
+    # Evaluation fields (populated by LangGraph or post-hoc scoring)
+    evaluation: dict[str, Any] = field(default_factory=dict)
+    composite_score: float = 0.0
+    passed: bool = True
+    iterations: int = 1
+
 
 @dataclass
 class OutputField:

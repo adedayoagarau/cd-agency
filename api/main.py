@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -12,19 +13,33 @@ from fastapi.staticfiles import StaticFiles
 from api.routers import agents, history, presets, scoring, validate
 from api.routers import export as export_router
 from api.routers import scrape, workflows
+from api.routers.v2 import agents as agents_v2
+from api.routers.v2 import brand_dna as brand_dna_v2
+from api.routers.v2 import memory as memory_v2
+from api.routers.v2 import connectors as connectors_v2
+from api.routers.v2 import history as history_v2
+from api.routers.v2 import config as config_v2
+from api.routers.v2 import websocket as websocket_v2
+from api.routers.v2 import scoring as scoring_v2
+from api.routers.v2 import workflows as workflows_v2
+from api.routers.v2 import presets as presets_v2
+from api.routers.v2 import validate as validate_v2
+from api.routers.v2 import scrape as scrape_v2
+from api.routers.v2 import export as export_v2
 
 app = FastAPI(
     title="CD Agency API",
     description="Content Design Agency — REST API for UX writing, content scoring, and design system presets.",
-    version="0.5.0",
+    version="0.6.0",
 )
 
 # ── CORS ─────────────────────────────────────────────────────────────────────
-# Allow all origins so the Figma plugin and external integrations can connect.
+
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,6 +56,22 @@ app.include_router(workflows.router, prefix="/api/v1")
 app.include_router(scrape.router, prefix="/api/v1")
 app.include_router(export_router.router, prefix="/api/v1")
 
+# ── V2 Routers ──────────────────────────────────────────────────────────────
+
+app.include_router(agents_v2.router)
+app.include_router(brand_dna_v2.router)
+app.include_router(memory_v2.router)
+app.include_router(connectors_v2.router)
+app.include_router(history_v2.router)
+app.include_router(config_v2.router)
+app.include_router(websocket_v2.router)
+app.include_router(scoring_v2.router)
+app.include_router(workflows_v2.router)
+app.include_router(presets_v2.router)
+app.include_router(validate_v2.router)
+app.include_router(scrape_v2.router)
+app.include_router(export_v2.router)
+
 
 # ── Health Check ─────────────────────────────────────────────────────────────
 
@@ -48,7 +79,12 @@ app.include_router(export_router.router, prefix="/api/v1")
 @app.get("/health", tags=["health"])
 async def health_check() -> dict[str, str]:
     """Health check endpoint for load balancers and uptime monitors."""
-    return {"status": "ok"}
+    import importlib.metadata
+    try:
+        version = importlib.metadata.version("cd-agency")
+    except Exception:
+        version = "0.6.0"
+    return {"status": "ok", "version": version}
 
 
 # ── Static Files (SPA) ──────────────────────────────────────────────────────

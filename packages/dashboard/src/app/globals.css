@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-surface-bg text-stone-800 font-sans antialiased;
+  }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #D6D3D1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #A8A29E; }
+
+.glass-topbar {
+  background: rgba(250, 249, 247, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin-slow 3s linear infinite; }

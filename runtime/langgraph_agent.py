@@ -19,14 +19,102 @@ import json
 import time
 from typing import Any
 
+import logging
+
 from runtime.agent import Agent, AgentOutput
 from runtime.model_providers import ModelRouter
 from runtime.tools.base import Tool, ToolResult
+
+_logger = logging.getLogger(__name__)
 
 # Quality thresholds for the evaluation loop
 DEFAULT_READABILITY_THRESHOLD = 60.0  # Flesch Reading Ease
 DEFAULT_MAX_CRITICAL_LINT_ISSUES = 0
 DEFAULT_MAX_ITERATIONS = 3
+
+
+# ---------------------------------------------------------------------------
+# Evaluation score normalization
+# ---------------------------------------------------------------------------
+
+def _normalize_evaluation_scores(scores: dict[str, Any]) -> dict[str, float]:
+    """Normalize raw tool scores to flat 0–100 floats for the API response."""
+    normalized: dict[str, float] = {}
+
+    readability = scores.get("readability", {})
+    if readability:
+        normalized["readability"] = max(0.0, min(100.0, readability.get("flesch_reading_ease", 0.0)))
+
+    linter = scores.get("linter", {})
+    if "issues" in linter:
+        issue_count = linter.get("issues_found", len(linter.get("issues", [])))
+        normalized["linter"] = max(0.0, 100.0 - issue_count * 10)
+
+    a11y = scores.get("accessibility", {})
+    if "issues" in a11y:
+        issue_count = len(a11y.get("issues", []))
+        normalized["accessibility"] = max(0.0, 100.0 - issue_count * 15)
+
+    voice = scores.get("voice", {})
+    if voice:
+        raw_score = voice.get("score", 5)
+        normalized["voice"] = max(0.0, min(100.0, raw_score * 10))
+
+    return normalized
+
+
+def run_posthoc_evaluation(content: str) -> tuple[dict[str, float], float]:
+    """Run scoring tools on content after a direct (non-LangGraph) agent run.
+
+    Returns (evaluation_dict, composite_score).
+    """
+    from dataclasses import asdict
+
+    scores: dict[str, Any] = {}
+
+    try:
+        from tools.scoring import ReadabilityScorer
+        scorer = ReadabilityScorer()
+        result = scorer.score(content)
+        d = asdict(result)
+        d.pop("text", None)
+        scores["readability"] = d
+    except Exception:
+        pass
+
+    try:
+        from tools.linter import ContentLinter
+        linter = ContentLinter()
+        lint_results = linter.lint(content)
+        issues = [r.to_dict() for r in lint_results if not r.passed]
+        scores["linter"] = {
+            "issues": issues,
+            "issues_found": len(issues),
+        }
+    except Exception:
+        pass
+
+    try:
+        from tools.a11y_checker import A11yChecker
+        checker = A11yChecker()
+        result = checker.check(content)
+        scores["accessibility"] = {
+            "issues": [asdict(i) for i in result.issues],
+            "reading_grade": result.reading_grade,
+            "target_grade": result.target_grade,
+        }
+    except Exception:
+        pass
+
+    evaluation = _normalize_evaluation_scores(scores)
+
+    # Simple average composite
+    if evaluation:
+        composite = round(sum(evaluation.values()) / len(evaluation), 2)
+    else:
+        composite = 0.0
+
+    return evaluation, composite
 
 
 # ---------------------------------------------------------------------------
@@ -95,15 +183,61 @@ class ContentDesignGraph:
         self.max_critical_lint = max_critical_lint
         self.max_iterations = max_iterations
 
+        # Council evaluator — lazy-initialized, disabled by default
+        self._council_evaluator: Any = None
+        self._council_config: Any = None
+
+    # ------------------------------------------------------------------
+    # Council evaluator (lazy-loaded)
+    # ------------------------------------------------------------------
+
+    @property
+    def council_evaluator(self) -> Any:
+        """Lazy-load council evaluator. Returns None if disabled."""
+        if self._council_evaluator is None and self._council_config is None:
+            try:
+                from runtime.council_config import CouncilConfig
+                from runtime.council_evaluator import CouncilEvaluator
+
+                self._council_config = CouncilConfig.from_config()
+                if self._council_config.enabled:
+                    self._council_evaluator = CouncilEvaluator(
+                        self.model_router, self._council_config
+                    )
+            except Exception as e:
+                _logger.debug("Council evaluator not available: %s", e)
+                self._council_config = object()  # sentinel to prevent re-init
+        return self._council_evaluator
+
     # ------------------------------------------------------------------
     # Graph construction
     # ------------------------------------------------------------------
 
     def _build_graph(self) -> Any:
-        """Build the LangGraph StateGraph."""
-        from langgraph.graph import StateGraph, END
+        """Build the LangGraph StateGraph.
 
-        graph = StateGraph(dict)
+        Uses a TypedDict schema so LangGraph merges partial node returns
+        into the existing state instead of replacing it entirely.
+        """
+        from langgraph.graph import StateGraph, END
+        from typing import TypedDict, Annotated
+        import operator
+
+        class GraphState(TypedDict, total=False):
+            messages: list
+            system_message: str
+            agent_name: str
+            tools_available: list
+            current_output: str
+            evaluation_scores: dict
+            iteration_count: int
+            max_iterations: int
+            final_output: str
+            memory_context: str
+            total_input_tokens: int
+            total_output_tokens: int
+
+        graph = StateGraph(GraphState)
 
         graph.add_node("retrieve_context", self._node_retrieve_context)
         graph.add_node("generate", self._node_generate)
@@ -212,7 +346,54 @@ class ContentDesignGraph:
         composite = self._calculate_composite_score(scores)
         scores["_composite"] = composite
 
+        # Optional council evaluation (second-pass)
+        council_result = self._try_council_evaluation(output, scores)
+        if council_result is not None:
+            scores["_council"] = council_result
+
         return {"evaluation_scores": scores}
+
+    def _try_council_evaluation(
+        self, content: str, tool_scores: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Run council evaluation if enabled and triggered. Returns None if skipped."""
+        evaluator = self.council_evaluator
+        if evaluator is None:
+            return None
+
+        config = self._council_config
+        composite = tool_scores.get("_composite", 100)
+
+        from runtime.quality_config import QualityConfig
+        qc = QualityConfig()
+        threshold = qc.get_threshold(self.agent.slug, "composite_score")
+
+        context = {
+            "quality_threshold_failed": composite < threshold,
+            "single_model_confidence": min(composite / 100, 1.0),
+        }
+
+        if not config.should_trigger(context):
+            return None
+
+        try:
+            from runtime.evaluation_profiles import get_weights
+
+            weights = get_weights(self.agent.slug)
+            result = evaluator.evaluate(content, weights, context)
+
+            return {
+                "consensus_composite": result.consensus_composite,
+                "consensus_scores": result.consensus_scores,
+                "confidence": result.confidence,
+                "participating_models": result.participating_models,
+                "quorum_met": result.quorum_met,
+                "fallback_used": result.fallback_used,
+                "reasoning": result.synthesis_reasoning,
+            }
+        except Exception as e:
+            _logger.error("Council evaluation failed: %s", e)
+            return None
 
     def _calculate_composite_score(self, scores: dict[str, Any]) -> float:
         """Calculate a weighted composite quality score (0–100)."""
@@ -472,6 +653,14 @@ class ContentDesignGraph:
         if composite is not None:
             parts.append(f"\nComposite quality score: {composite:.0f}/100")
 
+        council = scores.get("_council")
+        if council and council.get("quorum_met"):
+            parts.append(
+                f"Council consensus score: {council['consensus_composite']:.2f} "
+                f"(confidence: {council['confidence']:.2f}, "
+                f"models: {', '.join(council.get('participating_models', []))})"
+            )
+
         parts.append("\nRewrite the content to fix these issues while maintaining the same meaning.")
         return "\n".join(parts)
 
@@ -508,6 +697,19 @@ class ContentDesignGraph:
         final_state = graph.invoke(state)
         elapsed_ms = (time.monotonic() - start) * 1000
 
+        # Extract evaluation data from final graph state
+        eval_scores = final_state.get("evaluation_scores", {})
+        composite = eval_scores.pop("_composite", 0.0) if "_composite" in eval_scores else 0.0
+        council_result = eval_scores.pop("_council", None) if "_council" in eval_scores else None
+
+        # Normalize evaluation to flat numeric scores for the API response
+        evaluation = _normalize_evaluation_scores(eval_scores)
+
+        # Determine pass/fail against quality threshold
+        from runtime.quality_config import QualityConfig
+        qc = QualityConfig()
+        threshold = qc.get_threshold(self.agent.slug, "composite_score")
+
         return AgentOutput(
             content=final_state.get("final_output", ""),
             agent_name=self.agent.name,
@@ -515,7 +717,11 @@ class ContentDesignGraph:
             input_tokens=final_state.get("total_input_tokens", 0),
             output_tokens=final_state.get("total_output_tokens", 0),
             latency_ms=elapsed_ms,
-            raw_response=final_state.get("evaluation_scores"),
+            raw_response={"scores": eval_scores, "council": council_result},
+            evaluation=evaluation,
+            composite_score=composite,
+            passed=composite >= threshold,
+            iterations=final_state.get("iteration_count", 1),
         )
 
 

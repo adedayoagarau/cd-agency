@@ -145,6 +145,25 @@ class AgentRunner:
 
         elapsed_ms = (time.monotonic() - start) * 1000
 
+        # Run post-hoc evaluation on the output content
+        evaluation: dict[str, float] = {}
+        composite_score = 0.0
+        try:
+            from runtime.langgraph_agent import run_posthoc_evaluation
+            evaluation, composite_score = run_posthoc_evaluation(response.content)
+        except Exception:
+            pass
+
+        # Determine pass/fail
+        passed = True
+        try:
+            from runtime.quality_config import QualityConfig
+            qc = QualityConfig()
+            threshold = qc.get_threshold(agent.slug, "composite_score")
+            passed = composite_score >= threshold
+        except Exception:
+            pass
+
         output = AgentOutput(
             content=response.content,
             agent_name=agent.name,
@@ -153,6 +172,10 @@ class AgentRunner:
             output_tokens=response.output_tokens,
             latency_ms=elapsed_ms,
             raw_response=response.raw_response,
+            evaluation=evaluation,
+            composite_score=composite_score,
+            passed=passed,
+            iterations=1,
         )
 
         # Record content version for history tracking
@@ -188,6 +211,37 @@ class AgentRunner:
             )
         except Exception:
             pass  # Analytics should never break agent execution
+
+        # Record evaluation history for the v2 history API
+        try:
+            from runtime.evaluation_history import EvaluationHistory
+            eval_history = EvaluationHistory()
+            eval_history.record(
+                agent_slug=agent.slug,
+                scores=evaluation,
+                composite_score=composite_score,
+                passed=passed,
+                iteration_count=1,
+            )
+        except Exception:
+            pass  # Evaluation history should never break agent execution
+
+        # Persist to project memory for the v2 memory API
+        try:
+            from runtime.memory_hierarchy import MemoryHierarchy
+            mem = MemoryHierarchy(project_dir=Path("."))
+            primary_input_val = ""
+            if agent.inputs:
+                primary_input_val = str(user_input.get(agent.inputs[0].name, ""))
+            mem.remember(
+                key=f"agent-run:{agent.slug}:{int(time.time())}",
+                value=f"Input: {primary_input_val[:200]}\nOutput: {output.content[:300]}",
+                category="agent-run",
+                source_agent=agent.name,
+                visibility="project",
+            )
+        except Exception:
+            pass  # Memory should never break agent execution
 
         return output
 
@@ -297,6 +351,23 @@ class AgentRunner:
             )
         except Exception:
             pass
+
+        # Persist to project memory for the v2 memory API
+        try:
+            from runtime.memory_hierarchy import MemoryHierarchy
+            mem = MemoryHierarchy(project_dir=Path("."))
+            primary_input_val = ""
+            if agent.inputs:
+                primary_input_val = str(user_input.get(agent.inputs[0].name, ""))
+            mem.remember(
+                key=f"agent-run:{agent.slug}:{int(time.time())}",
+                value=f"Input: {primary_input_val[:200]}\nOutput: {output.content[:300]}",
+                category="agent-run",
+                source_agent=agent.name,
+                visibility="project",
+            )
+        except Exception:
+            pass  # Memory should never break agent execution
 
         return output
 

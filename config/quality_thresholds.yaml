@@ -17,3 +17,22 @@
 global:
   composite_score: 75
   readability_min: 65
+
+# Multi-model council evaluation — optional second-pass quality gate.
+# Disabled by default. Enable to use multiple LLMs for consensus scoring.
+council:
+  enabled: false
+  min_models: 2
+  min_quorum: 2
+  max_parallel: 3
+  timeout_seconds: 30.0
+  consensus_method: "weighted_median"  # weighted_median, mean, median
+  confidence_threshold: 0.7
+  trigger_conditions:
+    - "manual"  # Only when explicitly requested
+    # - "always"             # Every evaluation
+    # - "high_stakes"        # When context.high_stakes = true
+    # - "low_confidence"     # When single-model confidence < threshold
+    # - "quality_threshold_failed"  # When tool evaluation fails threshold
+  enable_caching: true
+  cache_ttl_seconds: 300

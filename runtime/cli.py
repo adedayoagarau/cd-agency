@@ -7,6 +7,7 @@ import sys
 from typing import Any
 
 import click
+import yaml
 from rich.console import Console
 from rich.table import Table
 
@@ -1911,6 +1912,765 @@ def brand_reset() -> None:
         console.print("[green]Brand DNA has been reset.[/green]")
     else:
         console.print("[yellow]No brand DNA found to reset.[/yellow]")
+
+
+# --- Council commands ---
+
+@main.group()
+def council() -> None:
+    """Manage llm-council quality gate configuration."""
+    pass
+
+
+@council.command("status")
+def council_status() -> None:
+    """Show current council configuration and available models."""
+    from runtime.council_config import CouncilConfig
+
+    config = CouncilConfig.from_config()
+
+    console.print("[bold]Council Configuration[/bold]")
+    console.print(f"  Enabled: {'yes' if config.enabled else 'no'}")
+    console.print(f"  Min Models: {config.min_models}")
+    console.print(f"  Min Quorum: {config.min_quorum}")
+    console.print(f"  Max Parallel: {config.max_parallel}")
+    console.print(f"  Consensus Method: {config.consensus_method}")
+    console.print(f"  Confidence Threshold: {config.confidence_threshold}")
+    console.print(f"  Timeout: {config.timeout_seconds}s")
+    console.print(f"  Caching: {'on' if config.enable_caching else 'off'} (TTL {config.cache_ttl_seconds}s)")
+    console.print(f"  Trigger Conditions: {', '.join(config.trigger_conditions)}")
+
+    try:
+        from runtime.config import Config
+        from runtime.model_providers import ModelRouter
+
+        cfg = Config.from_env()
+        router = ModelRouter.from_config(cfg)
+        available = config.get_available_models(router)
+
+        console.print(f"\n[bold]Available Models: {len(available)}[/bold]")
+        for provider_key, model_name in available:
+            console.print(f"  - {provider_key}/{model_name}")
+
+        if len(available) < config.min_models:
+            console.print(
+                f"\n[yellow]Warning: Only {len(available)} model(s) available, "
+                f"but {config.min_models} required for council evaluation.[/yellow]"
+            )
+    except Exception as e:
+        console.print(f"\n[red]Error checking available models: {e}[/red]")
+
+
+@council.command("enable")
+def council_enable() -> None:
+    """Enable council evaluation."""
+    _update_council_yaml({"enabled": True})
+    console.print("[green]Council evaluation enabled.[/green]")
+
+
+@council.command("disable")
+def council_disable() -> None:
+    """Disable council evaluation."""
+    _update_council_yaml({"enabled": False})
+    console.print("[yellow]Council evaluation disabled.[/yellow]")
+
+
+@council.command("configure")
+@click.option("--min-models", type=int, help="Minimum models required")
+@click.option("--min-quorum", type=int, help="Minimum successful evaluations required")
+@click.option(
+    "--consensus-method",
+    type=click.Choice(["weighted_median", "mean", "median"]),
+    help="Consensus calculation method",
+)
+@click.option("--add-trigger", help="Add trigger condition")
+@click.option("--remove-trigger", help="Remove trigger condition")
+@click.option("--timeout", type=float, help="Timeout in seconds")
+def council_configure(
+    min_models: int | None,
+    min_quorum: int | None,
+    consensus_method: str | None,
+    add_trigger: str | None,
+    remove_trigger: str | None,
+    timeout: float | None,
+) -> None:
+    """Configure council evaluation settings."""
+    from pathlib import Path
+
+    config_path = Path("config/quality_thresholds.yaml")
+    if not config_path.exists():
+        console.print("[red]Config file not found.[/red]")
+        return
+
+    with open(config_path) as f:
+        config_data = yaml.safe_load(f) or {}
+
+    if "council" not in config_data:
+        config_data["council"] = {}
+
+    changes = []
+
+    if min_models is not None:
+        config_data["council"]["min_models"] = min_models
+        changes.append(f"min_models = {min_models}")
+
+    if min_quorum is not None:
+        config_data["council"]["min_quorum"] = min_quorum
+        changes.append(f"min_quorum = {min_quorum}")
+
+    if consensus_method is not None:
+        config_data["council"]["consensus_method"] = consensus_method
+        changes.append(f"consensus_method = {consensus_method}")
+
+    if timeout is not None:
+        config_data["council"]["timeout_seconds"] = timeout
+        changes.append(f"timeout = {timeout}s")
+
+    if add_trigger:
+        triggers = config_data["council"].get("trigger_conditions", [])
+        if add_trigger not in triggers:
+            triggers.append(add_trigger)
+            config_data["council"]["trigger_conditions"] = triggers
+            changes.append(f"added trigger: {add_trigger}")
+        else:
+            console.print(f"[yellow]Trigger '{add_trigger}' already exists.[/yellow]")
+
+    if remove_trigger:
+        triggers = config_data["council"].get("trigger_conditions", [])
+        if remove_trigger in triggers:
+            triggers.remove(remove_trigger)
+            config_data["council"]["trigger_conditions"] = triggers
+            changes.append(f"removed trigger: {remove_trigger}")
+        else:
+            console.print(f"[yellow]Trigger '{remove_trigger}' not found.[/yellow]")
+
+    if changes:
+        with open(config_path, "w") as f:
+            yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
+        for change in changes:
+            console.print(f"  [green]{change}[/green]")
+        console.print(f"\nConfiguration saved to {config_path}")
+    else:
+        console.print("[dim]No changes specified.[/dim]")
+
+
+def _update_council_yaml(updates: dict[str, Any]) -> None:
+    """Helper to update council section in quality_thresholds.yaml."""
+    from pathlib import Path
+
+    config_path = Path("config/quality_thresholds.yaml")
+    config_data: dict[str, Any] = {}
+
+    if config_path.exists():
+        with open(config_path) as f:
+            config_data = yaml.safe_load(f) or {}
+
+    if "council" not in config_data:
+        config_data["council"] = {}
+
+    config_data["council"].update(updates)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(config_path, "w") as f:
+        yaml.dump(config_data, f, default_flow_style=False, sort_keys=False)
+
+
+# --- Pipeline commands ---
+
+@main.group()
+def pipeline() -> None:
+    """Run orchestrated multi-agent pipelines."""
+    pass
+
+
+@pipeline.command("list")
+def pipeline_list() -> None:
+    """List available pre-built pipelines."""
+    from runtime.orchestrator import (
+        content_quality_pipeline,
+        error_message_pipeline,
+        localization_pipeline,
+    )
+
+    pipelines = [
+        content_quality_pipeline(),
+        error_message_pipeline(),
+        localization_pipeline(),
+    ]
+
+    table = Table(title="Available Pipelines")
+    table.add_column("Name", style="bold")
+    table.add_column("Steps")
+    table.add_column("Description")
+
+    for p in pipelines:
+        table.add_row(p.name, str(len(p.steps)), p.description or "—")
+
+    console.print(table)
+
+
+@pipeline.command("run")
+@click.argument("name")
+@click.option("-i", "--input", "content", required=True, help="Content to process")
+def pipeline_run(name: str, content: str) -> None:
+    """Run a pre-built pipeline on content."""
+    from runtime.orchestrator import (
+        content_quality_pipeline,
+        error_message_pipeline,
+        localization_pipeline,
+    )
+
+    pipelines = {
+        "content-quality": content_quality_pipeline,
+        "error-message": error_message_pipeline,
+        "localization": localization_pipeline,
+    }
+
+    factory = pipelines.get(name)
+    if factory is None:
+        console.print(f"[red]Unknown pipeline: {name}[/red]")
+        console.print(f"Available: {', '.join(pipelines.keys())}")
+        return
+
+    pipeline_obj = factory()
+
+    config = Config.from_env()
+    runner = AgentRunner(config)
+    registry = _get_registry()
+
+    console.print(f"[bold]Running: {pipeline_obj.name}[/bold]\n")
+
+    def on_start(i: int, agent_name: str) -> None:
+        console.print(f"  [dim]Step {i + 1}:[/dim] {agent_name}...")
+
+    def on_complete(i: int, agent_name: str, step_out: Any) -> None:
+        if step_out.error:
+            console.print(f"    [red]Error: {step_out.error}[/red]")
+        elif step_out.skipped:
+            console.print(f"    [yellow]Skipped[/yellow]")
+        else:
+            console.print(f"    [green]Done[/green] ({step_out.duration_ms:.0f}ms)")
+
+    pipeline_obj.on_step_start = on_start
+    pipeline_obj.on_step_complete = on_complete
+
+    result = pipeline_obj.run(runner, registry, {"content": content})
+
+    console.print(f"\n[bold]Result:[/bold]")
+    console.print(result.final_output)
+
+    tokens = result.total_tokens
+    console.print(
+        f"\n[dim]Steps: {len(result.steps)} | "
+        f"Tokens: {tokens['total']:,} | "
+        f"Time: {result.total_duration_ms:.0f}ms[/dim]"
+    )
+
+
+# --- Governance commands ---
+
+@main.group()
+def governance() -> None:
+    """Content governance and approval workflows."""
+    pass
+
+
+@governance.command("audit")
+@click.option("-n", "--count", default=20, help="Number of recent entries")
+def governance_audit(count: int) -> None:
+    """Show recent audit log entries."""
+    from runtime.governance import AuditLog
+
+    log = AuditLog()
+    entries = log.get_recent(count)
+
+    if not entries:
+        console.print("[dim]No audit entries.[/dim]")
+        return
+
+    table = Table(title=f"Audit Log (last {count})")
+    table.add_column("ID", style="dim")
+    table.add_column("Action")
+    table.add_column("Type")
+    table.add_column("Actor")
+    table.add_column("Description")
+
+    for e in entries:
+        table.add_row(e.id, e.action, e.change_type, e.actor, e.description[:60])
+
+    console.print(table)
+
+
+@governance.command("pending")
+def governance_pending() -> None:
+    """Show pending changes awaiting approval."""
+    from runtime.governance import ChangeTracker
+
+    tracker = ChangeTracker()
+    pending = tracker.get_pending()
+
+    if not pending:
+        console.print("[green]No pending changes.[/green]")
+        return
+
+    table = Table(title=f"Pending Changes ({len(pending)})")
+    table.add_column("ID")
+    table.add_column("Type")
+    table.add_column("Key")
+    table.add_column("Before")
+    table.add_column("After")
+
+    for r in pending:
+        table.add_row(r.id, r.change_type, r.key, r.before_value[:30], r.after_value[:30])
+
+    console.print(table)
+
+
+@governance.command("approve")
+@click.argument("record_id")
+def governance_approve(record_id: str) -> None:
+    """Approve a pending change by ID."""
+    from runtime.governance import ChangeTracker
+
+    tracker = ChangeTracker()
+    if tracker.approve(record_id, approved_by="user"):
+        console.print(f"[green]Change {record_id} approved.[/green]")
+    else:
+        console.print(f"[red]Change {record_id} not found or not pending.[/red]")
+
+
+@governance.command("reject")
+@click.argument("record_id")
+@click.option("--reason", default="", help="Reason for rejection")
+def governance_reject(record_id: str, reason: str) -> None:
+    """Reject a pending change by ID."""
+    from runtime.governance import ChangeTracker
+
+    tracker = ChangeTracker()
+    if tracker.reject(record_id, rejected_by="user", reason=reason):
+        console.print(f"[yellow]Change {record_id} rejected.[/yellow]")
+    else:
+        console.print(f"[red]Change {record_id} not found or not pending.[/red]")
+
+
+# --- Feedback commands ---
+
+@main.group()
+def feedback() -> None:
+    """Feedback-driven learning from human edits."""
+    pass
+
+
+@feedback.command("record")
+@click.option("--agent", required=True, help="Agent slug")
+@click.option("--original", required=True, help="Original agent output")
+@click.option("--edited", required=True, help="Human-edited version")
+def feedback_record(agent: str, original: str, edited: str) -> None:
+    """Record a human edit to agent output."""
+    from runtime.feedback_loop import FeedbackStore
+
+    store = FeedbackStore()
+    edit = store.record_edit(agent_slug=agent, original=original, edited=edited)
+
+    console.print(f"[green]Edit recorded.[/green]")
+    console.print(f"  Type: {edit.edit_type}")
+    console.print(f"  Similarity: {edit.similarity:.0%}")
+
+
+@feedback.command("patterns")
+@click.option("--agent", default=None, help="Filter by agent slug")
+def feedback_patterns(agent: str | None) -> None:
+    """Show learned feedback patterns."""
+    from runtime.feedback_loop import FeedbackStore
+
+    store = FeedbackStore()
+    patterns = store.get_patterns_for_agent(agent) if agent else store.patterns
+
+    if not patterns:
+        console.print("[dim]No patterns learned yet.[/dim]")
+        return
+
+    table = Table(title=f"Learned Patterns ({len(patterns)})")
+    table.add_column("Original")
+    table.add_column("Corrected")
+    table.add_column("Occurrences")
+    table.add_column("Confidence")
+
+    for p in sorted(patterns, key=lambda x: x.occurrences, reverse=True)[:20]:
+        table.add_row(
+            p.original_pattern, p.corrected_pattern,
+            str(p.occurrences), f"{p.confidence:.0%}",
+        )
+
+    console.print(table)
+
+
+@feedback.command("stats")
+@click.argument("agent_slug")
+def feedback_stats(agent_slug: str) -> None:
+    """Show editing statistics for an agent."""
+    from runtime.feedback_loop import FeedbackStore
+
+    store = FeedbackStore()
+    stats = store.get_agent_edit_stats(agent_slug)
+
+    console.print(f"[bold]Feedback Stats: {agent_slug}[/bold]")
+    console.print(f"  Total edits: {stats['total_edits']}")
+    console.print(f"  Avg similarity: {stats['avg_similarity']:.0%}")
+    console.print(f"  Minor tweaks: {stats['minor_tweaks']}")
+    console.print(f"  Significant rewrites: {stats['significant_rewrites']}")
+    console.print(f"  Rejections: {stats['rejections']}")
+
+
+# --- Variant testing commands ---
+
+@main.group()
+def variant() -> None:
+    """A/B content variant testing."""
+    pass
+
+
+@variant.command("test")
+@click.argument("agent_slug")
+@click.option("-i", "--input", "content", required=True, help="Content/prompt for variant generation")
+@click.option("-n", "--count", default=3, type=int, help="Number of variants (2-5)")
+def variant_test(agent_slug: str, content: str, count: int) -> None:
+    """Generate and compare content variants."""
+    from runtime.variant_testing import VariantTestRunner
+
+    config = Config.from_env()
+    runner = AgentRunner(config)
+    registry = _get_registry()
+
+    tester = VariantTestRunner(runner, registry)
+
+    console.print(f"[bold]Generating {count} variants with {agent_slug}...[/bold]\n")
+    result = tester.test(agent_slug, {"content": content}, n_variants=count)
+
+    for v in result.variants:
+        score_str = f"{v.composite_score:.0f}" if v.composite_score else "—"
+        console.print(f"[bold]Variant {v.label}[/bold] (score: {score_str})")
+        console.print(f"  {v.content[:200]}{'...' if len(v.content) > 200 else ''}")
+        if v.strengths:
+            console.print(f"  [green]+ {', '.join(v.strengths)}[/green]")
+        if v.weaknesses:
+            console.print(f"  [red]- {', '.join(v.weaknesses)}[/red]")
+        console.print()
+
+    if result.comparison:
+        console.print(f"[bold]Recommendation:[/bold]")
+        console.print(result.comparison.recommendation)
+
+
+@variant.command("history")
+def variant_history() -> None:
+    """List saved variant test results."""
+    from runtime.variant_testing import VariantTestRunner
+
+    results = VariantTestRunner.list_results()
+
+    if not results:
+        console.print("[dim]No variant test results.[/dim]")
+        return
+
+    table = Table(title="Variant Test History")
+    table.add_column("ID")
+    table.add_column("Agent")
+    table.add_column("Variants")
+    table.add_column("Recommended")
+    table.add_column("Prompt")
+
+    for r in results[:20]:
+        table.add_row(r["id"], r["agent_slug"], str(r["variant_count"]), r["recommended"], r["prompt"][:40])
+
+    console.print(table)
+
+
+# --- Dashboard command ---
+
+@main.command("dashboard")
+@click.option("--days", default=30, type=int, help="Number of days to include")
+def dashboard_cmd(days: int) -> None:
+    """Show the observability dashboard."""
+    from runtime.dashboard import Dashboard
+
+    dashboard = Dashboard()
+    output = dashboard.render(days)
+    console.print(output)
+
+
+# ---------------------------------------------------------------------------
+# Figma design system sync
+# ---------------------------------------------------------------------------
+
+
+@main.group("figma")
+def figma() -> None:
+    """Figma design system sync commands."""
+
+
+@figma.command("status")
+def figma_status() -> None:
+    """Show Figma sync status."""
+    from runtime.figma_sync import FigmaDesignSync
+
+    sync = FigmaDesignSync.from_config()
+    status = sync.get_sync_status()
+
+    table = Table(title="Figma Sync Status")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value")
+
+    table.add_row("Configured", str(status["configured"]))
+    table.add_row("Auto-sync", str(status["auto_sync"]))
+    table.add_row("Interval", f"{status['interval_minutes']} minutes")
+    table.add_row("File key", status.get("file_key", "") or "(none)")
+    table.add_row("File name", status.get("file_name", "") or "(none)")
+
+    if status["last_sync"]:
+        import time
+
+        ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(status["last_sync"]))
+        table.add_row("Last sync", ts)
+        table.add_row("Stale", str(status["is_stale"]))
+    else:
+        table.add_row("Last sync", "(never)")
+
+    table.add_row("Tokens", str(status["token_count"]))
+    table.add_row("Components", str(status["component_count"]))
+    table.add_row("Variables", str(status["variable_count"]))
+
+    console.print(table)
+
+
+@figma.command("sync")
+@click.option("--force", is_flag=True, help="Force sync even if cache is fresh")
+def figma_sync(force: bool) -> None:
+    """Sync design system from Figma."""
+    from runtime.figma_sync import FigmaDesignSync
+
+    sync = FigmaDesignSync.from_config()
+
+    if not sync.is_configured:
+        console.print(
+            "[red]Figma not configured.[/red] "
+            "Set FIGMA_ACCESS_TOKEN and FIGMA_FILE_KEY env vars, "
+            "or add figma config to .cd-agency.yaml."
+        )
+        return
+
+    try:
+        ds = sync.sync(force=force)
+        console.print(f"[green]Synced:[/green] {ds.name}")
+        console.print(f"  Components: {len(ds.components)}")
+        console.print(f"  Terminology rules: {len(ds.terminology)}")
+        console.print(f"  Voice principles: {len(ds.voice_principles)}")
+    except Exception as exc:
+        console.print(f"[red]Sync failed:[/red] {exc}")
+
+
+@figma.command("show")
+def figma_show() -> None:
+    """Show the cached design system from Figma."""
+    from runtime.figma_sync import FigmaDesignSync
+
+    sync = FigmaDesignSync.from_config()
+    ds = sync.get_cached()
+
+    if ds is None:
+        console.print("[yellow]No cached design system.[/yellow] Run 'cd-agency figma sync' first.")
+        return
+
+    console.print(ds.build_context_block())
+
+
+@figma.command("clear")
+def figma_clear() -> None:
+    """Clear the Figma sync cache."""
+    from runtime.figma_sync import FigmaDesignSync
+
+    sync = FigmaDesignSync.from_config()
+    sync.clear_cache()
+    console.print("[green]Figma cache cleared.[/green]")
+
+
+# ---------------------------------------------------------------------------
+# Connector ecosystem
+# ---------------------------------------------------------------------------
+
+
+@main.group("connector")
+def connector_group() -> None:
+    """Manage connectors for external content platforms."""
+
+
+@connector_group.command("list")
+def connector_list() -> None:
+    """List available and configured connectors."""
+    from runtime.connectors.registry import connector_registry
+
+    connector_registry.initialize()
+
+    table = Table(title="Connector Types")
+    table.add_column("Type", style="cyan")
+    table.add_column("Status")
+
+    configured = connector_registry.list_configured()
+    for ctype in sorted(connector_registry.list_available_types()):
+        names = [n for n in configured if connector_registry._connector_configs[n].type == ctype]
+        if names:
+            table.add_row(ctype, f"configured ({', '.join(names)})")
+        else:
+            table.add_row(ctype, "available")
+
+    console.print(table)
+
+    if configured:
+        t2 = Table(title="Configured Connectors")
+        t2.add_column("Name", style="cyan")
+        t2.add_column("Type")
+        t2.add_column("Enabled")
+        for name in sorted(configured):
+            cfg = connector_registry._connector_configs[name]
+            t2.add_row(name, cfg.type, str(cfg.enabled))
+        console.print(t2)
+
+
+@connector_group.command("status")
+@click.argument("name", required=False)
+def connector_status(name: str | None) -> None:
+    """Check connector health status."""
+    from runtime.connectors.registry import connector_registry
+
+    connector_registry.initialize()
+
+    if name:
+        conn = connector_registry.get_connector(name)
+        if not conn:
+            console.print(f"[red]Connector '{name}' not found or disabled.[/red]")
+            return
+        health = conn.health_check()
+        console.print(f"Connector: [cyan]{name}[/cyan]")
+        console.print(f"Status: {health.status.value}")
+        console.print(f"Message: {health.message}")
+        if health.latency_ms:
+            console.print(f"Latency: {health.latency_ms:.1f}ms")
+        if health.error:
+            console.print(f"[red]Error: {health.error}[/red]")
+    else:
+        results = connector_registry.health_check_all()
+        if not results:
+            console.print("No enabled connectors configured.")
+            return
+        table = Table(title="Connector Health")
+        table.add_column("Name", style="cyan")
+        table.add_column("Status")
+        table.add_column("Message")
+        for n, h in results.items():
+            table.add_row(n, h.status.value, h.message[:60])
+        console.print(table)
+
+
+@connector_group.command("test")
+@click.argument("name")
+def connector_test(name: str) -> None:
+    """Test a connector's authentication and basic operations."""
+    from runtime.connectors.registry import connector_registry
+
+    connector_registry.initialize()
+    conn = connector_registry.get_connector(name)
+    if not conn:
+        console.print(f"[red]Connector '{name}' not found or disabled.[/red]")
+        return
+
+    console.print(f"Testing connector [cyan]{name}[/cyan]...")
+
+    # Auth
+    console.print("  Authentication... ", end="")
+    if conn.authenticate():
+        console.print("[green]OK[/green]")
+    else:
+        console.print("[red]FAILED[/red]")
+        return
+
+    # Health
+    console.print("  Health check... ", end="")
+    h = conn.health_check()
+    if h.status.value == "healthy":
+        console.print(f"[green]OK[/green] ({h.latency_ms:.0f}ms)" if h.latency_ms else "[green]OK[/green]")
+    else:
+        console.print(f"[yellow]{h.status.value}[/yellow]")
+
+    # Schema
+    console.print("  Schema discovery... ", end="")
+    try:
+        schema = conn.get_schema()
+        if schema and "error" not in schema:
+            console.print("[green]OK[/green]")
+        else:
+            console.print("[yellow]limited[/yellow]")
+    except Exception:
+        console.print("[yellow]not supported[/yellow]")
+
+    # Content listing
+    console.print("  Content listing... ", end="")
+    try:
+        items = conn.list_content(limit=5)
+        console.print(f"[green]OK[/green] ({len(items)} items)")
+    except Exception as exc:
+        console.print(f"[red]FAILED ({exc})[/red]")
+
+    console.print(f"[green]All checks complete for '{name}'.[/green]")
+
+
+@connector_group.command("fetch")
+@click.argument("name")
+@click.option("--id", "content_id", help="Specific content ID to fetch")
+@click.option("--type", "content_type", help="Content type filter")
+@click.option("--limit", type=int, default=10, help="Max items")
+def connector_fetch(name: str, content_id: str | None, content_type: str | None, limit: int) -> None:
+    """Fetch content from a connector."""
+    from runtime.connectors.tools.fetch_content import FetchContentTool
+
+    tool = FetchContentTool()
+    result = tool.execute(
+        connector_name=name,
+        content_id=content_id,
+        content_type=content_type,
+        limit=limit,
+    )
+    if result.success:
+        items = result.data.get("content", [])
+        console.print(f"[green]Fetched {len(items)} item(s) from '{name}'[/green]")
+        for item in items[:10]:
+            console.print(f"  [{item.get('id', '?')}] {item.get('title', 'Untitled')}")
+    else:
+        console.print(f"[red]Fetch failed: {result.error}[/red]")
+
+
+@connector_group.command("sync")
+@click.argument("name")
+@click.option("--since-hours", type=int, help="Only sync items from last N hours")
+@click.option("--dry-run", is_flag=True, help="Report what would be synced")
+def connector_sync(name: str, since_hours: int | None, dry_run: bool) -> None:
+    """Sync content from a connector."""
+    from runtime.connectors.tools.sync_content import SyncContentTool
+
+    tool = SyncContentTool()
+    result = tool.execute(
+        connector_name=name,
+        direction="pull",
+        since_hours=since_hours,
+        dry_run=dry_run,
+    )
+    if result.success:
+        data = result.data or {}
+        console.print(f"[green]Sync complete for '{name}'[/green]")
+        console.print(f"  Items: {data.get('items_found', data.get('items_synced', 0))}")
+        if dry_run:
+            console.print("  (dry run — no changes made)")
+    else:
+        console.print(f"[red]Sync failed: {result.error}[/red]")
 
 
 @main.command("studio")

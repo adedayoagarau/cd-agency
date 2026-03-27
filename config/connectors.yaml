@@ -1,0 +1,67 @@
+# Connector configurations for cd-agency
+# Environment variables are substituted with ${VAR} or ${VAR:default} syntax
+
+connectors:
+  contentful:
+    type: "contentful"
+    credentials:
+      space_id: "${CONTENTFUL_SPACE_ID}"
+      access_token: "${CONTENTFUL_ACCESS_TOKEN}"
+      environment: "${CONTENTFUL_ENVIRONMENT:master}"
+    settings:
+      locale: "en-US"
+      include_drafts: false
+    sync_mode: "pull"
+    rate_limit: 200
+    cache_ttl: 600
+    enabled: false
+
+  figma:
+    type: "figma"
+    credentials:
+      personal_access_token: "${FIGMA_TOKEN}"
+    settings:
+      team_id: "${FIGMA_TEAM_ID}"
+    sync_mode: "pull"
+    rate_limit: 100
+    enabled: false
+
+  notion:
+    type: "notion"
+    credentials:
+      api_key: "${NOTION_API_KEY}"
+    settings:
+      database_id: "${NOTION_DATABASE_ID}"
+      version: "2022-06-28"
+    sync_mode: "bidirectional"
+    rate_limit: 300
+    enabled: false
+
+  wordpress:
+    type: "wordpress"
+    base_url: "${WORDPRESS_BASE_URL}"
+    credentials:
+      username: "${WORDPRESS_USERNAME}"
+      application_password: "${WORDPRESS_APP_PASSWORD}"
+    settings:
+      post_types: ["post", "page"]
+    sync_mode: "bidirectional"
+    rate_limit: 60
+    enabled: false
+
+  sanity:
+    type: "sanity"
+    credentials:
+      project_id: "${SANITY_PROJECT_ID}"
+      dataset: "${SANITY_DATASET:production}"
+      token: "${SANITY_TOKEN}"
+    sync_mode: "pull"
+    enabled: false
+
+  markdown_local:
+    type: "markdown"
+    settings:
+      directory: "./content"
+      extensions: [".md", ".mdx"]
+    sync_mode: "bidirectional"
+    enabled: false

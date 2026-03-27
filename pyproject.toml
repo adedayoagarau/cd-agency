@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cd-agency"
-version = "0.5.0"
+version = "0.6.0"
 description = "AI-powered content design agents for UX writers, conversation designers, and product teams"
 readme = "README.md"
 license = "MIT"
@@ -79,6 +79,13 @@ vectors = [
     "chromadb>=0.4.18",
     "sentence-transformers>=2.2.2",
 ]
+cloud = [
+    "sqlalchemy[postgresql]>=2.0.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.25.0",
+    "python-multipart>=0.0.6",
+    "psycopg2-binary>=2.9.0",
+]
 
 [project.scripts]
 cd-agency = "runtime.cli:main"
@@ -89,7 +96,7 @@ Repository = "https://github.com/adedayoagarau/cd-agency"
 Issues = "https://github.com/adedayoagarau/cd-agency/issues"
 
 [tool.setuptools.packages.find]
-include = ["runtime*", "runtime.tui*", "tools*", "mcp*", "api*"]
+include = ["runtime*", "runtime.tui*", "tools*", "mcp*", "api*", "packages*"]
 
 [tool.setuptools.package-data]
 "*" = ["*.md", "*.yaml", "*.yml"]
