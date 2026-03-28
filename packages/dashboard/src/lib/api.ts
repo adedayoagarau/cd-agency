@@ -16,6 +16,7 @@ class CDAgencyAPI {
     };
     if (keys.anthropic) headers["X-Anthropic-Key"] = keys.anthropic;
     if (keys.openai) headers["X-OpenAI-Key"] = keys.openai;
+    if (keys.openrouter) headers["X-OpenRouter-Key"] = keys.openrouter;
     // Merge with any custom headers
     if (options?.headers) {
       Object.assign(headers, options.headers);
@@ -62,6 +63,7 @@ class CDAgencyAPI {
       ...params,
       anthropic_key: keys.anthropic,
       openai_key: keys.openai,
+      openrouter_key: keys.openrouter,
     }));
     return ws;
   }

@@ -83,26 +83,34 @@ async def verify_api_key(
 async def get_runner_with_user_key(
     x_anthropic_key: Annotated[str | None, Header()] = None,
     x_openai_key: Annotated[str | None, Header()] = None,
+    x_openrouter_key: Annotated[str | None, Header()] = None,
 ) -> AgentRunner:
     """Create an AgentRunner using the caller's API keys.
 
     Priority:
-    1. ``X-Anthropic-Key`` request header (user-provided, per-request)
-    2. Server-side ``ANTHROPIC_API_KEY`` environment variable (fallback)
-    3. 401 if neither is available
+    1. Request headers (user-provided, per-request)
+    2. Server-side environment variables (fallback)
+    3. 401 if no key is available
 
-    Optionally accepts ``X-OpenAI-Key`` for OpenAI-backed agents.
+    Accepts ``X-Anthropic-Key``, ``X-OpenAI-Key``, and ``X-OpenRouter-Key``.
     """
     api_key = x_anthropic_key or os.environ.get("ANTHROPIC_API_KEY", "")
+    openrouter_key = x_openrouter_key or os.environ.get("OPENROUTER_API_KEY", "")
 
-    if not api_key:
+    if not api_key and not openrouter_key and not x_openai_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Anthropic API key required. Add your key in Settings > API Keys.",
+            detail="API key required. Add your key in Settings > API Keys.",
         )
 
     config = Config.from_env()
-    config.api_key = api_key
+    if api_key:
+        config.api_key = api_key
     if x_openai_key:
         config.openai_api_key = x_openai_key
+    if openrouter_key:
+        config.openrouter_api_key = openrouter_key
+        # If no Anthropic key, route through OpenRouter by default
+        if not api_key:
+            config.model = "openrouter/anthropic/claude-3.5-sonnet"
     return AgentRunner(config)
